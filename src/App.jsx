@@ -11,23 +11,36 @@ import {
   HelpCircle,
   Calculator,
   Lightbulb,
-  Award
+  Award,
+  Edit3,
+  Copy,
+  Check,
+  RotateCcw,
+  Eye,
+  EyeOff,
+  Code,
+  Lock
 } from 'lucide-react';
 
-// Komponen helper untuk merender tulisan & rumus LaTeX ($...$ dan $$...$$) secara otomatis
-function MathText({ text, className = '' }) {
+const EDITOR_PASSWORD = 'punyarumah';
+
+// Komponen helper untuk merender tulisan & rumus LaTeX ($...$ dan $$...$$) secara real-time
+function MathText({ text = '', className = '' }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
     const renderMath = () => {
-      if (containerRef.current && window.renderMathInElement) {
-        window.renderMathInElement(containerRef.current, {
-          delimiters: [
-            { left: '$$', right: '$$', display: true },
-            { left: '$', right: '$', display: false }
-          ],
-          throwOnError: false
-        });
+      if (containerRef.current) {
+        containerRef.current.textContent = text;
+        if (window.renderMathInElement) {
+          window.renderMathInElement(containerRef.current, {
+            delimiters: [
+              { left: '$$', right: '$$', display: true },
+              { left: '$', right: '$', display: false }
+            ],
+            throwOnError: false
+          });
+        }
       }
     };
 
@@ -36,11 +49,7 @@ function MathText({ text, className = '' }) {
     return () => window.removeEventListener('katex-loaded', renderMath);
   }, [text]);
 
-  return (
-    <span ref={containerRef} className={className}>
-      {text}
-    </span>
-  );
+  return <span ref={containerRef} className={className} />;
 }
 
 const curriculumData = [
@@ -385,7 +394,7 @@ const curriculumData = [
   },
   {
     levelId: 'level-2',
-    levelTitle: 'Level 2: Menengah',
+    levelTitle: 'LEVEL 2: MENENGAH',
     description: 'Penguasaan teknik standar kompetisi / Olimpiade.',
     units: [
       {
@@ -467,7 +476,7 @@ const curriculumData = [
   },
   {
     levelId: 'level-3',
-    levelTitle: 'Level 3: Lanjut',
+    levelTitle: 'LEVEL 3: LANJUT',
     description: 'Persiapan Olimpiade tingkat lanjut',
     units: [
       {
@@ -656,6 +665,52 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isPracticeMode, setIsPracticeMode] = useState(false);
 
+  // State Autentikasi & Akses Mode Editor Tersembunyi (?editor=1 atau 5x klik badge OM)
+  const [isEditorUnlocked, setIsEditorUnlocked] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('jagomatika_editor_unlocked') === 'true';
+    }
+    return false;
+  });
+
+  const [isEditorMode, setIsEditorMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const unlocked = sessionStorage.getItem('jagomatika_editor_unlocked') === 'true';
+      return params.get('editor') === '1' && unlocked;
+    }
+    return false;
+  });
+
+  const [showPasswordModal, setShowPasswordModal] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const unlocked = sessionStorage.getItem('jagomatika_editor_unlocked') === 'true';
+      return params.get('editor') === '1' && !unlocked;
+    }
+    return false;
+  });
+
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [showPasswordText, setShowPasswordText] = useState(false);
+  const [secretClicks, setSecretClicks] = useState(0);
+
+  // State Form Input di Mode Editor
+  const [editorTarget, setEditorTarget] = useState('exercise'); // 'exercise' | 'mixed' | 'example'
+  const [edId, setEdId] = useState('16');
+  const [edCategory, setEdCategory] = useState('Aljabar');
+  const [edQuestion, setEdQuestion] = useState(
+    'Jika $x + y = 10$ dan $xy = 21$, tentukan nilai dari $x^2 + y^2$.'
+  );
+  const [edOptions, setEdOptions] = useState(['58', '100', '42', '79']);
+  const [edCorrectIdx, setEdCorrectIdx] = useState(0);
+  const [edDiscussion, setEdDiscussion] = useState(
+    'Gunakan identitas aljabar $(x + y)^2 = x^2 + 2xy + y^2$.\nSubstitusi nilai yang diketahui: $10^2 = (x^2 + y^2) + 2(21) \\implies 100 = x^2 + y^2 + 42 \\implies x^2 + y^2 = 58$.'
+  );
+  const [copiedCode, setCopiedCode] = useState(false);
+  const questionInputRef = useRef(null);
+
   // State untuk Mode Latihan Soal Campuran
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
@@ -702,6 +757,106 @@ export default function App() {
     }
   }, []);
 
+  const handleSecretAvatarClick = () => {
+    const nextCount = secretClicks + 1;
+    if (nextCount >= 5) {
+      setSecretClicks(0);
+      if (isEditorMode) {
+        setIsEditorMode(false);
+      } else if (isEditorUnlocked) {
+        setIsEditorMode(true);
+      } else {
+        setPasswordInput('');
+        setPasswordError('');
+        setShowPasswordModal(true);
+      }
+    } else {
+      setSecretClicks(nextCount);
+    }
+  };
+
+  const handleVerifyPassword = (e) => {
+    e.preventDefault();
+    if (passwordInput === EDITOR_PASSWORD) {
+      sessionStorage.setItem('jagomatika_editor_unlocked', 'true');
+      setIsEditorUnlocked(true);
+      setShowPasswordModal(false);
+      setIsEditorMode(true);
+      setPasswordInput('');
+      setPasswordError('');
+    } else {
+      setPasswordError('Kata sandi salah. Silakan coba lagi.');
+    }
+  };
+
+  const handleClosePasswordModal = () => {
+    setShowPasswordModal(false);
+    setPasswordInput('');
+    setPasswordError('');
+  };
+
+  const insertLatexSnippet = (snippet) => {
+    setEdQuestion((prev) => `${prev}${prev.endsWith(' ') || prev === '' ? '' : ' '}${snippet}`);
+    if (questionInputRef.current) {
+      questionInputRef.current.focus();
+    }
+  };
+
+  const handleOptionChange = (index, value) => {
+    setEdOptions((prev) => {
+      const updated = [...prev];
+      updated[index] = value;
+      return updated;
+    });
+  };
+
+  const resetEditorForm = () => {
+    setEdId((prev) => String((parseInt(prev, 10) || 0) + 1));
+    setEdQuestion('');
+    setEdOptions(['', '', '', '']);
+    setEdCorrectIdx(0);
+    setEdDiscussion('');
+    setCopiedCode(false);
+  };
+
+  // Menghasilkan kode JS siap tempel (JSON.stringify otomatis menggandakan backslash LaTeX)
+  const generateCodeOutput = () => {
+    const numericId = parseInt(edId, 10) || 1;
+    if (editorTarget === 'example') {
+      return `{
+  number: ${numericId},
+  problem: ${JSON.stringify(edQuestion)},
+  solution: ${JSON.stringify(edDiscussion)}
+},`;
+    }
+
+    const correctAnswerStr = edOptions[edCorrectIdx] || '';
+    if (editorTarget === 'mixed') {
+      return `{
+  id: ${numericId},
+  category: ${JSON.stringify(edCategory)},
+  question: ${JSON.stringify(edQuestion)},
+  options: [${edOptions.map((o) => JSON.stringify(o)).join(', ')}],
+  answer: ${JSON.stringify(correctAnswerStr)},
+  discussion: ${JSON.stringify(edDiscussion)}
+},`;
+    }
+
+    return `{
+  id: ${numericId},
+  question: ${JSON.stringify(edQuestion)},
+  options: [${edOptions.map((o) => JSON.stringify(o)).join(', ')}],
+  answer: ${JSON.stringify(correctAnswerStr)},
+  discussion: ${JSON.stringify(edDiscussion)}
+},`;
+  };
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(generateCodeOutput());
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2500);
+  };
+
   const toggleLevel = (levelId) => {
     setOpenLevels((prev) => ({ ...prev, [levelId]: !prev[levelId] }));
   };
@@ -727,8 +882,88 @@ export default function App() {
 
   const activeQuestion = questionBank[currentQIndex];
 
+  const latexQuickButtons = [
+    { label: 'Pecahan', code: '$\\frac{a}{b}$' },
+    { label: 'Akar', code: '$\\sqrt{x}$' },
+    { label: 'Pangkat', code: '$x^{2}$' },
+    { label: 'Kali (×)', code: '$\\times$' },
+    { label: 'Kongruen (≡)', code: '$\\equiv$' },
+    { label: 'Modulo', code: '$\\pmod{m}$' },
+    { label: 'Implikasi (⇒)', code: '$\\implies$' },
+    { label: 'Derajat (°)', code: '$^\\circ$' }
+  ];
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
+      {/* Modal Password Akses Mode Editor */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-xl max-w-sm w-full p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                  <Lock size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Akses Mode Editor</h3>
+                  <p className="text-xs text-gray-500">Masukkan kata sandi pelatih</p>
+                </div>
+              </div>
+              <button
+                onClick={handleClosePasswordModal}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleVerifyPassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">Kata Sandi</label>
+                <div className="relative">
+                  <input
+                    type={showPasswordText ? 'text' : 'password'}
+                    value={passwordInput}
+                    onChange={(e) => {
+                      setPasswordInput(e.target.value);
+                      if (passwordError) setPasswordError('');
+                    }}
+                    placeholder="Masukkan kata sandi..."
+                    autoFocus
+                    className="w-full pl-3.5 pr-10 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordText((prev) => !prev)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    tabIndex={-1}
+                  >
+                    {showPasswordText ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {passwordError && <p className="text-xs font-semibold text-red-600 mt-1.5">{passwordError}</p>}
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleClosePasswordModal}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 transition-colors shadow-xs"
+                >
+                  Masuk Editor
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Top Navbar */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-30 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-3">
@@ -750,11 +985,24 @@ export default function App() {
             </span>
           </div>
         </div>
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
+          {isEditorMode && (
+            <button
+              onClick={() => setIsEditorMode(false)}
+              className="flex items-center space-x-1.5 bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-200 transition-all"
+            >
+              <X size={14} />
+              <span>Tutup Mode Editor</span>
+            </button>
+          )}
           <span className="text-sm font-medium text-gray-600 hidden sm:inline">Pusat Pembinaan & Mandiri</span>
-          <div className="w-9 h-9 bg-emerald-100 text-emerald-800 font-semibold rounded-full flex items-center justify-center border border-emerald-300">
+          <button
+            onClick={handleSecretAvatarClick}
+            title="Jagomatika"
+            className="w-9 h-9 bg-emerald-100 text-emerald-800 font-semibold rounded-full flex items-center justify-center border border-emerald-300 select-none active:scale-95 transition-transform"
+          >
             OM
-          </div>
+          </button>
         </div>
       </header>
 
@@ -767,14 +1015,15 @@ export default function App() {
           pt-16 md:pt-0 shadow-sm
         `}
         >
-          <div className="p-4 border-b border-gray-100 bg-emerald-50">
+          <div className="p-4 border-b border-gray-100 bg-emerald-50 space-y-2">
             <button
               onClick={() => {
                 setIsPracticeMode(true);
+                setIsEditorMode(false);
                 setMobileMenuOpen(false);
               }}
               className={`w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs ${
-                isPracticeMode
+                isPracticeMode && !isEditorMode
                   ? 'bg-emerald-700 text-white shadow-md'
                   : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
               }`}
@@ -782,6 +1031,19 @@ export default function App() {
               <Shuffle size={16} />
               <span>⚡ Latihan Soal Campuran (OSN)</span>
             </button>
+
+            {isEditorMode && (
+              <button
+                onClick={() => {
+                  setIsEditorMode(true);
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center justify-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold bg-amber-600 text-white shadow-sm"
+              >
+                <Edit3 size={15} />
+                <span>Mode Editor & Live LaTeX</span>
+              </button>
+            )}
           </div>
 
           <div className="p-3 border-b border-gray-100 flex items-center space-x-2 bg-gray-50/50">
@@ -830,13 +1092,14 @@ export default function App() {
                             {isUnitOpen && (
                               <div className="p-1.5 space-y-1 bg-white border-t border-gray-100">
                                 {unit.topics.map((topic) => {
-                                  const isSelected = !isPracticeMode && selectedTopic.id === topic.id;
+                                  const isSelected = !isPracticeMode && !isEditorMode && selectedTopic.id === topic.id;
                                   return (
                                     <button
                                       key={topic.id}
                                       onClick={() => {
                                         setSelectedTopic(topic);
                                         setIsPracticeMode(false);
+                                        setIsEditorMode(false);
                                         setMobileMenuOpen(false);
                                         setCompleted(false);
                                         setTopicAnswers({});
@@ -868,8 +1131,248 @@ export default function App() {
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto p-6 md:p-10 lg:px-14 bg-gray-50 scroll-smooth">
-          <div className="max-w-4xl mx-auto space-y-8">
-            {isPracticeMode ? (
+          <div className="max-w-5xl mx-auto space-y-8">
+            {isEditorMode ? (
+              // TAMPILAN MODE EDITOR TERSEMBUNYI
+              <div className="space-y-6">
+                <div className="bg-slate-900 text-white rounded-2xl p-6 md:p-8 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div>
+                    <span className="bg-amber-500/20 text-amber-300 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full border border-amber-400/30">
+                      Mode Editor Pelatih (Terverifikasi)
+                    </span>
+                    <h1 className="text-2xl md:text-3xl font-extrabold mt-2">Generator Soal & Live Preview LaTeX</h1>
+                    <p className="text-slate-300 text-sm mt-1">
+                      Ketik rumus dengan tanda <code className="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300">$ ... $</code>{' '}
+                      (cukup 1 backslash <code className="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300">\frac</code>), cek
+                      pratinjaunya, lalu salin kode JS siap pakai.
+                    </p>
+                  </div>
+                  <button
+                    onClick={resetEditorForm}
+                    className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold border border-slate-700 transition-all shrink-0"
+                  >
+                    <RotateCcw size={15} />
+                    <span>Soal Baru (Reset)</span>
+                  </button>
+                </div>
+
+                {/* Pilihan Target Format Kode */}
+                <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-500 mr-2">Target Tujuan Kode:</span>
+                  {[
+                    { id: 'exercise', label: 'Latihan Mandiri Unit (exercises)' },
+                    { id: 'mixed', label: 'Bank Soal Campuran (questionBank)' },
+                    { id: 'example', label: 'Contoh Soal Modul (examples)' }
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setEditorTarget(tab.id)}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                        editorTarget === tab.id
+                          ? 'bg-emerald-700 text-white shadow-xs'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* KOLOM KIRI: FORM INPUT */}
+                  <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-5">
+                    <div className="flex items-center space-x-2 border-b pb-3">
+                      <Edit3 size={18} className="text-emerald-700" />
+                      <h2 className="text-base font-bold text-gray-900">1. Formulir Input Konten</h2>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">
+                          {editorTarget === 'example' ? 'Nomor Contoh' : 'ID / Nomor Soal'}
+                        </label>
+                        <input
+                          type="number"
+                          value={edId}
+                          onChange={(e) => setEdId(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600"
+                        />
+                      </div>
+
+                      {editorTarget === 'mixed' && (
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">Kategori Materi</label>
+                          <select
+                            value={edCategory}
+                            onChange={(e) => setEdCategory(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 bg-white"
+                          >
+                            <option value="Teori Bilangan">Teori Bilangan</option>
+                            <option value="Aljabar">Aljabar</option>
+                            <option value="Geometri">Geometri</option>
+                            <option value="Kombinatorika">Kombinatorika</option>
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Tombol Sisip Cepat LaTeX */}
+                    <div>
+                      <span className="block text-xs font-bold text-gray-600 mb-1.5">Sisip Cepat Simbol LaTeX:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {latexQuickButtons.map((btn, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => insertLatexSnippet(btn.code)}
+                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-semibold transition-colors"
+                          >
+                            {btn.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Teks Pertanyaan / Soal</label>
+                      <textarea
+                        ref={questionInputRef}
+                        rows={4}
+                        value={edQuestion}
+                        onChange={(e) => setEdQuestion(e.target.value)}
+                        placeholder="Ketik soal di sini, gunakan $...$ untuk rumus..."
+                        className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 font-mono"
+                      />
+                    </div>
+
+                    {editorTarget !== 'example' && (
+                      <div className="space-y-2.5">
+                        <label className="block text-xs font-bold text-gray-700">
+                          Pilihan Jawaban (Klik huruf untuk menandai Kunci Jawaban)
+                        </label>
+                        {edOptions.map((opt, idx) => (
+                          <div key={idx} className="flex items-center space-x-2">
+                            <button
+                              type="button"
+                              onClick={() => setEdCorrectIdx(idx)}
+                              className={`w-8 h-8 rounded-lg text-xs font-bold shrink-0 border transition-all ${
+                                edCorrectIdx === idx
+                                  ? 'bg-emerald-700 text-white border-emerald-700'
+                                  : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200'
+                              }`}
+                              title="Tandai sebagai jawaban benar"
+                            >
+                              {String.fromCharCode(65 + idx)}
+                            </button>
+                            <input
+                              type="text"
+                              value={opt}
+                              onChange={(e) => handleOptionChange(idx, e.target.value)}
+                              placeholder={`Opsi ${String.fromCharCode(65 + idx)} (contoh: $2\\sqrt{3}$)`}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 font-mono"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Pembahasan Lengkap</label>
+                      <textarea
+                        rows={4}
+                        value={edDiscussion}
+                        onChange={(e) => setEdDiscussion(e.target.value)}
+                        placeholder="Ketik langkah pembahasan dengan format LaTeX..."
+                        className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  {/* KOLOM KANAN: LIVE PREVIEW & GENERATED CODE */}
+                  <div className="space-y-6">
+                    {/* Live Preview Card */}
+                    <div className="bg-white p-6 rounded-2xl border border-emerald-200 shadow-sm space-y-4">
+                      <div className="flex items-center justify-between border-b pb-3">
+                        <div className="flex items-center space-x-2">
+                          <Eye size={18} className="text-emerald-700" />
+                          <h2 className="text-base font-bold text-gray-900">2. Live Preview Tampilan Siswa</h2>
+                        </div>
+                        {editorTarget === 'mixed' && (
+                          <span className="text-xs font-bold px-2.5 py-0.5 bg-amber-100 text-amber-800 rounded-full">
+                            {edCategory}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-4">
+                        <div className="flex items-start space-x-3">
+                          <span className="w-7 h-7 rounded-lg bg-emerald-700 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                            {edId || '1'}
+                          </span>
+                          <div className="text-gray-900 font-medium text-sm md:text-base leading-relaxed whitespace-pre-line">
+                            <MathText text={edQuestion || 'Pratinjau soal akan muncul di sini...'} />
+                          </div>
+                        </div>
+
+                        {editorTarget !== 'example' && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-0 sm:pl-10">
+                            {edOptions.map((opt, idx) => {
+                              const isKey = edCorrectIdx === idx;
+                              return (
+                                <div
+                                  key={idx}
+                                  className={`px-3.5 py-2 rounded-lg border text-sm flex items-center justify-between ${
+                                    isKey
+                                      ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold'
+                                      : 'border-gray-200 bg-white text-gray-700'
+                                  }`}
+                                >
+                                  <MathText text={opt || `Opsi ${String.fromCharCode(65 + idx)}`} />
+                                  {isKey && <CheckCircle size={14} className="text-emerald-600 shrink-0" />}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-xs md:text-sm text-emerald-950 space-y-1">
+                          <p className="font-bold text-emerald-800">Pembahasan:</p>
+                          <div className="leading-relaxed whitespace-pre-line">
+                            <MathText text={edDiscussion || 'Pratinjau pembahasan akan muncul di sini...'} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Box Kode JS Siap Salin */}
+                    <div className="bg-slate-900 text-slate-100 p-6 rounded-2xl shadow-sm space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <Code size={18} className="text-emerald-400" />
+                          <h3 className="text-sm font-bold text-white">3. Kode Siap Tempel (App.jsx)</h3>
+                        </div>
+                        <button
+                          onClick={handleCopyCode}
+                          className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                            copiedCode
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-white text-slate-900 hover:bg-emerald-50'
+                          }`}
+                        >
+                          {copiedCode ? <Check size={15} /> : <Copy size={15} />}
+                          <span>{copiedCode ? 'Kode Tersalin!' : 'Salin Kode'}</span>
+                        </button>
+                      </div>
+
+                      <pre className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs text-emerald-300 overflow-x-auto font-mono leading-relaxed">
+                        {generateCodeOutput()}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : isPracticeMode ? (
+              // TAMPILAN MODE LATIHAN SOAL CAMPURAN
               <div className="space-y-6">
                 <div className="bg-emerald-700 text-white rounded-2xl p-6 md:p-8 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div>
@@ -960,8 +1463,8 @@ export default function App() {
                 </div>
               </div>
             ) : (
+              // TAMPILAN MODUL MATERI STANDAR
               <div className="space-y-8">
-                {/* Header Modul */}
                 <div className="bg-emerald-50 border border-emerald-200/60 rounded-2xl p-6 md:p-8 shadow-sm">
                   <span className="text-xs font-bold text-emerald-800 uppercase tracking-widest bg-emerald-100 px-3 py-1 rounded-full border border-emerald-200">
                     Modul Pembelajaran Mandiri
@@ -991,9 +1494,7 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                  {/* Kolom Utama: Materi, Contoh Soal, dan 15 Latihan */}
                   <div className="lg:col-span-3 space-y-8">
-                    {/* Bagian 1: Ringkasan Konsep & Rumus */}
                     <section id="materi" className="bg-white p-6 md:p-8 rounded-2xl border border-gray-200/80 shadow-sm space-y-6">
                       <div className="flex items-center space-x-2 border-b pb-3">
                         <Calculator size={20} className="text-emerald-700" />
@@ -1039,7 +1540,6 @@ export default function App() {
                       </div>
                     </section>
 
-                    {/* Bagian 2: Contoh Soal & Pembahasan */}
                     {selectedTopic.examples && selectedTopic.examples.length > 0 && (
                       <section id="contoh-soal" className="bg-white p-6 md:p-8 rounded-2xl border border-gray-200/80 shadow-sm space-y-6">
                         <div className="flex items-center space-x-2 border-b pb-3">
@@ -1068,7 +1568,6 @@ export default function App() {
                       </section>
                     )}
 
-                    {/* Bagian 3: 15 Soal Latihan Mandiri */}
                     {selectedTopic.exercises && selectedTopic.exercises.length > 0 && (
                       <section id="latihan-mandiri" className="bg-white p-6 md:p-8 rounded-2xl border border-gray-200/80 shadow-sm space-y-6">
                         <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
@@ -1080,10 +1579,8 @@ export default function App() {
                           </div>
                           <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
                             Skor Sementara:{' '}
-                            {
-                              selectedTopic.exercises.filter((q) => topicAnswers[q.id] === q.answer).length
-                            }{' '}
-                            / {selectedTopic.exercises.length}
+                            {selectedTopic.exercises.filter((q) => topicAnswers[q.id] === q.answer).length} /{' '}
+                            {selectedTopic.exercises.length}
                           </span>
                         </div>
 
@@ -1159,7 +1656,6 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* Sidebar Kanan (Navigasi Cepat Halaman) */}
                   <div className="space-y-4">
                     <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-sm sticky top-20">
                       <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Navigasi Modul</h4>
