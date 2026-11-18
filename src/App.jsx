@@ -58,7 +58,7 @@ const curriculumData = [
   },
   {
     levelId: 'level-2',
-    levelTitle: 'Level 2: Menengah (Standar OSK)',
+    levelTitle: 'Level 2: Menengah',
     description: 'Penguasaan teknik standar kompetisi tingkat Kabupaten/Kota.',
     units: [
       {
@@ -104,7 +104,7 @@ const curriculumData = [
   },
   {
     levelId: 'level-3',
-    levelTitle: 'Level 3: Lanjut / Mahir (Standar OSN)',
+    levelTitle: 'Level 3: Lanjut',
     description: 'Persiapan tingkat Provinsi (OSP) hingga Nasional (OSN).',
     units: [
       {
