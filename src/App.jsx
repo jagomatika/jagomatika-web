@@ -19,7 +19,9 @@ import {
   Eye,
   EyeOff,
   Code,
-  Lock
+  Lock,
+  PlusCircle,
+  FileText
 } from 'lucide-react';
 
 const EDITOR_PASSWORD = 'punyarumah';
@@ -697,7 +699,10 @@ export default function App() {
   const [secretClicks, setSecretClicks] = useState(0);
 
   // State Form Input di Mode Editor
-  const [editorTarget, setEditorTarget] = useState('exercise'); // 'exercise' | 'mixed' | 'example'
+  // Target: 'exercise' | 'mixed' | 'example' | 'section' | 'topic'
+  const [editorTarget, setEditorTarget] = useState('exercise'); 
+
+  // Fields untuk Latihan / Contoh / Soal Campuran
   const [edId, setEdId] = useState('16');
   const [edCategory, setEdCategory] = useState('Aljabar');
   const [edQuestion, setEdQuestion] = useState(
@@ -708,6 +713,17 @@ export default function App() {
   const [edDiscussion, setEdDiscussion] = useState(
     'Gunakan identitas aljabar $(x + y)^2 = x^2 + 2xy + y^2$.\nSubstitusi nilai yang diketahui: $10^2 = (x^2 + y^2) + 2(21) \\implies 100 = x^2 + y^2 + 42 \\implies x^2 + y^2 = 58$.'
   );
+
+  // Fields khusus untuk Bagian Materi (Section)
+  const [edHeading, setEdHeading] = useState('5. Sifat Tambahan & Teorema Penting');
+  const [edParagraph, setEdParagraph] = useState('Penjelasan materi atau penjabaran konsep mendalam untuk olimpiade matematika.');
+  const [edFormula, setEdFormula] = useState('$$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$$');
+
+  // Fields khusus untuk Topik Baru (Topic)
+  const [edTopicId, setEdTopicId] = useState('t25');
+  const [edTopicTitle, setEdTopicTitle] = useState('Topik Baru Olimpiade');
+  const [edCoachNote, setEdCoachNote] = useState('Catatan penting pelatih untuk topik ini.');
+
   const [copiedCode, setCopiedCode] = useState(false);
   const questionInputRef = useRef(null);
 
@@ -795,10 +811,15 @@ export default function App() {
     setPasswordError('');
   };
 
-  const insertLatexSnippet = (snippet) => {
-    setEdQuestion((prev) => `${prev}${prev.endsWith(' ') || prev === '' ? '' : ' '}${snippet}`);
-    if (questionInputRef.current) {
-      questionInputRef.current.focus();
+  const insertLatexSnippet = (snippet, targetField = 'question') => {
+    if (targetField === 'question') {
+      setEdQuestion((prev) => `${prev}${prev.endsWith(' ') || prev === '' ? '' : ' '}${snippet}`);
+    } else if (targetField === 'discussion') {
+      setEdDiscussion((prev) => `${prev}${prev.endsWith(' ') || prev === '' ? '' : ' '}${snippet}`);
+    } else if (targetField === 'paragraph') {
+      setEdParagraph((prev) => `${prev}${prev.endsWith(' ') || prev === '' ? '' : ' '}${snippet}`);
+    } else if (targetField === 'formula') {
+      setEdFormula(snippet);
     }
   };
 
@@ -819,9 +840,10 @@ export default function App() {
     setCopiedCode(false);
   };
 
-  // Menghasilkan kode JS siap tempel (JSON.stringify otomatis menggandakan backslash LaTeX)
+  // Menghasilkan kode JS siap tempel sesuai target yang dipilih
   const generateCodeOutput = () => {
     const numericId = parseInt(edId, 10) || 1;
+
     if (editorTarget === 'example') {
       return `{
   number: ${numericId},
@@ -830,8 +852,8 @@ export default function App() {
 },`;
     }
 
-    const correctAnswerStr = edOptions[edCorrectIdx] || '';
     if (editorTarget === 'mixed') {
+      const correctAnswerStr = edOptions[edCorrectIdx] || '';
       return `{
   id: ${numericId},
   category: ${JSON.stringify(edCategory)},
@@ -842,6 +864,51 @@ export default function App() {
 },`;
     }
 
+    if (editorTarget === 'section') {
+      return `{
+  heading: ${JSON.stringify(edHeading)},
+  paragraphs: [
+    ${JSON.stringify(edParagraph)}
+  ],
+  formulas: [
+    ${JSON.stringify(edFormula)}
+  ]
+},`;
+    }
+
+    if (editorTarget === 'topic') {
+      return `{
+  id: ${JSON.stringify(edTopicId)},
+  title: ${JSON.stringify(edTopicTitle)},
+  coachNote: ${JSON.stringify(edCoachNote)},
+  sections: [
+    {
+      heading: "1. Pengantar Konsep",
+      paragraphs: ["Tulis ringkasan materi di sini..."],
+      formulas: ["$$...$$"]
+    }
+  ],
+  examples: [
+    {
+      number: 1,
+      problem: "Tulis contoh soal di sini...",
+      solution: "Tulis pembahasan di sini..."
+    }
+  ],
+  exercises: [
+    {
+      id: 1,
+      question: "Tulis soal latihan di sini...",
+      options: ["A", "B", "C", "D"],
+      answer: "A",
+      discussion: "Tulis pembahasan latihan..."
+    }
+  ]
+},`;
+    }
+
+    // Default: exercise
+    const correctAnswerStr = edOptions[edCorrectIdx] || '';
     return `{
   id: ${numericId},
   question: ${JSON.stringify(edQuestion)},
@@ -1133,18 +1200,16 @@ export default function App() {
         <main className="flex-1 overflow-y-auto p-6 md:p-10 lg:px-14 bg-gray-50 scroll-smooth">
           <div className="max-w-5xl mx-auto space-y-8">
             {isEditorMode ? (
-              // TAMPILAN MODE EDITOR TERSEMBUNYI
+              // TAMPILAN MODE EDITOR TERSEMBUNYI (DENGAN PILIHAN MATERI & TOPIK)
               <div className="space-y-6">
                 <div className="bg-slate-900 text-white rounded-2xl p-6 md:p-8 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div>
                     <span className="bg-amber-500/20 text-amber-300 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full border border-amber-400/30">
-                      Mode Editor Pelatih (Terverifikasi)
+                      Mode Editor Pelatih (Level 1, 2, & 3)
                     </span>
-                    <h1 className="text-2xl md:text-3xl font-extrabold mt-2">Generator Soal & Live Preview LaTeX</h1>
+                    <h1 className="text-2xl md:text-3xl font-extrabold mt-2">Generator Konten, Materi, & Soal</h1>
                     <p className="text-slate-300 text-sm mt-1">
-                      Ketik rumus dengan tanda <code className="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300">$ ... $</code>{' '}
-                      (cukup 1 backslash <code className="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300">\frac</code>), cek
-                      pratinjaunya, lalu salin kode JS siap pakai.
+                      Pilih target tujuan (Soal, Bagian Materi/Teori, atau Topik Baru), ketik dengan format LaTeX, dan salin kodenya.
                     </p>
                   </div>
                   <button
@@ -1152,22 +1217,24 @@ export default function App() {
                     className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold border border-slate-700 transition-all shrink-0"
                   >
                     <RotateCcw size={15} />
-                    <span>Soal Baru (Reset)</span>
+                    <span>Form Baru (Reset)</span>
                   </button>
                 </div>
 
-                {/* Pilihan Target Format Kode */}
-                <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-3">
+                {/* Pilihan Target Format Kode (Diperluas hingga Materi & Topik Baru) */}
+                <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-2.5">
                   <span className="text-xs font-bold uppercase tracking-wider text-gray-500 mr-2">Target Tujuan Kode:</span>
                   {[
-                    { id: 'exercise', label: 'Latihan Mandiri Unit (exercises)' },
-                    { id: 'mixed', label: 'Bank Soal Campuran (questionBank)' },
-                    { id: 'example', label: 'Contoh Soal Modul (examples)' }
+                    { id: 'exercise', label: 'Latihan Mandiri (exercises)' },
+                    { id: 'mixed', label: 'Soal Campuran (questionBank)' },
+                    { id: 'example', label: 'Contoh Soal (examples)' },
+                    { id: 'section', label: 'Materi / Teori (sections)' },
+                    { id: 'topic', label: 'Topik Baru (topic object)' }
                   ].map((tab) => (
                     <button
                       key={tab.id}
                       onClick={() => setEditorTarget(tab.id)}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
                         editorTarget === tab.id
                           ? 'bg-emerald-700 text-white shadow-xs'
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -1179,113 +1246,215 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* KOLOM KIRI: FORM INPUT */}
+                  {/* KOLOM KIRI: FORM INPUT BERDASARKAN TARGET */}
                   <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-5">
                     <div className="flex items-center space-x-2 border-b pb-3">
                       <Edit3 size={18} className="text-emerald-700" />
-                      <h2 className="text-base font-bold text-gray-900">1. Formulir Input Konten</h2>
+                      <h2 className="text-base font-bold text-gray-900">
+                        1. Formulir Input ({editorTarget.toUpperCase()})
+                      </h2>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1">
-                          {editorTarget === 'example' ? 'Nomor Contoh' : 'ID / Nomor Soal'}
-                        </label>
-                        <input
-                          type="number"
-                          value={edId}
-                          onChange={(e) => setEdId(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600"
-                        />
-                      </div>
-
-                      {editorTarget === 'mixed' && (
+                    {/* JIKA TARGET: SECTION (BAGIAN MATERI / TEORI) */}
+                    {editorTarget === 'section' && (
+                      <div className="space-y-4">
                         <div>
-                          <label className="block text-xs font-bold text-gray-700 mb-1">Kategori Materi</label>
-                          <select
-                            value={edCategory}
-                            onChange={(e) => setEdCategory(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 bg-white"
-                          >
-                            <option value="Teori Bilangan">Teori Bilangan</option>
-                            <option value="Aljabar">Aljabar</option>
-                            <option value="Geometri">Geometri</option>
-                            <option value="Kombinatorika">Kombinatorika</option>
-                          </select>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">Judul Sub-Bab / Heading</label>
+                          <input
+                            type="text"
+                            value={edHeading}
+                            onChange={(e) => setEdHeading(e.target.value)}
+                            placeholder="Contoh: 5. Sifat Kongruensi Lanjutan"
+                            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 font-mono"
+                          />
                         </div>
-                      )}
-                    </div>
 
-                    {/* Tombol Sisip Cepat LaTeX */}
-                    <div>
-                      <span className="block text-xs font-bold text-gray-600 mb-1.5">Sisip Cepat Simbol LaTeX:</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {latexQuickButtons.map((btn, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => insertLatexSnippet(btn.code)}
-                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-semibold transition-colors"
-                          >
-                            {btn.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Teks Pertanyaan / Soal</label>
-                      <textarea
-                        ref={questionInputRef}
-                        rows={4}
-                        value={edQuestion}
-                        onChange={(e) => setEdQuestion(e.target.value)}
-                        placeholder="Ketik soal di sini, gunakan $...$ untuk rumus..."
-                        className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 font-mono"
-                      />
-                    </div>
-
-                    {editorTarget !== 'example' && (
-                      <div className="space-y-2.5">
-                        <label className="block text-xs font-bold text-gray-700">
-                          Pilihan Jawaban (Klik huruf untuk menandai Kunci Jawaban)
-                        </label>
-                        {edOptions.map((opt, idx) => (
-                          <div key={idx} className="flex items-center space-x-2">
-                            <button
-                              type="button"
-                              onClick={() => setEdCorrectIdx(idx)}
-                              className={`w-8 h-8 rounded-lg text-xs font-bold shrink-0 border transition-all ${
-                                edCorrectIdx === idx
-                                  ? 'bg-emerald-700 text-white border-emerald-700'
-                                  : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200'
-                              }`}
-                              title="Tandai sebagai jawaban benar"
-                            >
-                              {String.fromCharCode(65 + idx)}
-                            </button>
-                            <input
-                              type="text"
-                              value={opt}
-                              onChange={(e) => handleOptionChange(idx, e.target.value)}
-                              placeholder={`Opsi ${String.fromCharCode(65 + idx)} (contoh: $2\\sqrt{3}$)`}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 font-mono"
-                            />
+                        <div>
+                          <span className="block text-xs font-bold text-gray-600 mb-1.5">Sisip Cepat Simbol LaTeX:</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {latexQuickButtons.map((btn, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => insertLatexSnippet(btn.code, 'paragraph')}
+                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-semibold transition-colors"
+                              >
+                                {btn.label}
+                              </button>
+                            ))}
                           </div>
-                        ))}
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">Paragraf Penjelasan Materi</label>
+                          <textarea
+                            rows={4}
+                            value={edParagraph}
+                            onChange={(e) => setEdParagraph(e.target.value)}
+                            placeholder="Ketik penjelasan teori dengan format $...$ ..."
+                            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">Rumus Matematika Utama (Format $$...$$)</label>
+                          <input
+                            type="text"
+                            value={edFormula}
+                            onChange={(e) => setEdFormula(e.target.value)}
+                            placeholder="Contoh: $$\sum_{i=1}^{n} i = \frac{n(n+1)}{2}$$"
+                            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 font-mono"
+                          />
+                        </div>
                       </div>
                     )}
 
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Pembahasan Lengkap</label>
-                      <textarea
-                        rows={4}
-                        value={edDiscussion}
-                        onChange={(e) => setEdDiscussion(e.target.value)}
-                        placeholder="Ketik langkah pembahasan dengan format LaTeX..."
-                        className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 font-mono"
-                      />
-                    </div>
+                    {/* JIKA TARGET: TOPIK BARU */}
+                    {editorTarget === 'topic' && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-gray-700 mb-1">ID Topik</label>
+                            <input
+                              type="text"
+                              value={edTopicId}
+                              onChange={(e) => setEdTopicId(e.target.value)}
+                              placeholder="Contoh: t25"
+                              className="w-full px-3.5 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-700 mb-1">Judul Topik</label>
+                            <input
+                              type="text"
+                              value={edTopicTitle}
+                              onChange={(e) => setEdTopicTitle(e.target.value)}
+                              placeholder="Judul bab..."
+                              className="w-full px-3.5 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">Catatan Pelatih (Coach Note)</label>
+                          <textarea
+                            rows={3}
+                            value={edCoachNote}
+                            onChange={(e) => setEdCoachNote(e.target.value)}
+                            placeholder="Pesan khusus untuk siswa pada topik ini..."
+                            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 font-mono"
+                          />
+                        </div>
+                        <p className="text-xs text-amber-800 bg-amber-50 p-3 rounded-xl border border-amber-200">
+                          ℹ️ Topik baru akan digenerate lengkap dengan templat dasar <code className="font-bold">sections</code>, <code className="font-bold">examples</code>, dan <code className="font-bold">exercises</code> yang bisa langsung Anda sesuaikan di file kurikulum.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* JIKA TARGET: EXERCISE / MIXED / EXAMPLE (SOAL) */}
+                    {editorTarget !== 'section' && editorTarget !== 'topic' && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-gray-700 mb-1">
+                              {editorTarget === 'example' ? 'Nomor Contoh' : 'ID / Nomor Soal'}
+                            </label>
+                            <input
+                              type="number"
+                              value={edId}
+                              onChange={(e) => setEdId(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600"
+                            />
+                          </div>
+
+                          {editorTarget === 'mixed' && (
+                            <div>
+                              <label className="block text-xs font-bold text-gray-700 mb-1">Kategori Materi</label>
+                              <select
+                                value={edCategory}
+                                onChange={(e) => setEdCategory(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 bg-white"
+                              >
+                                <option value="Teori Bilangan">Teori Bilangan</option>
+                                <option value="Aljabar">Aljabar</option>
+                                <option value="Geometri">Geometri</option>
+                                <option value="Kombinatorika">Kombinatorika</option>
+                              </select>
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <span className="block text-xs font-bold text-gray-600 mb-1.5">Sisip Cepat Simbol LaTeX:</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {latexQuickButtons.map((btn, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => insertLatexSnippet(btn.code, 'question')}
+                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-semibold transition-colors"
+                              >
+                                {btn.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">Teks Pertanyaan / Soal</label>
+                          <textarea
+                            ref={questionInputRef}
+                            rows={4}
+                            value={edQuestion}
+                            onChange={(e) => setEdQuestion(e.target.value)}
+                            placeholder="Ketik soal di sini, gunakan $...$ untuk rumus..."
+                            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 font-mono"
+                          />
+                        </div>
+
+                        {editorTarget !== 'example' && (
+                          <div className="space-y-2.5">
+                            <label className="block text-xs font-bold text-gray-700">
+                              Pilihan Jawaban (Klik huruf untuk menandai Kunci Jawaban)
+                            </label>
+                            {edOptions.map((opt, idx) => (
+                              <div key={idx} className="flex items-center space-x-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setEdCorrectIdx(idx)}
+                                  className={`w-8 h-8 rounded-lg text-xs font-bold shrink-0 border transition-all ${
+                                    edCorrectIdx === idx
+                                      ? 'bg-emerald-700 text-white border-emerald-700'
+                                      : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200'
+                                  }`}
+                                  title="Tandai sebagai jawaban benar"
+                                >
+                                  {String.fromCharCode(65 + idx)}
+                                </button>
+                                <input
+                                  type="text"
+                                  value={opt}
+                                  onChange={(e) => handleOptionChange(idx, e.target.value)}
+                                  placeholder={`Opsi ${String.fromCharCode(65 + idx)} (contoh: $2\\sqrt{3}$)`}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 font-mono"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">Pembahasan Lengkap</label>
+                          <textarea
+                            rows={4}
+                            value={edDiscussion}
+                            onChange={(e) => setEdDiscussion(e.target.value)}
+                            placeholder="Ketik langkah pembahasan dengan format LaTeX..."
+                            className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 font-mono"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* KOLOM KANAN: LIVE PREVIEW & GENERATED CODE */}
@@ -1295,52 +1464,70 @@ export default function App() {
                       <div className="flex items-center justify-between border-b pb-3">
                         <div className="flex items-center space-x-2">
                           <Eye size={18} className="text-emerald-700" />
-                          <h2 className="text-base font-bold text-gray-900">2. Live Preview Tampilan Siswa</h2>
+                          <h2 className="text-base font-bold text-gray-900">2. Live Preview Tampilan</h2>
                         </div>
-                        {editorTarget === 'mixed' && (
-                          <span className="text-xs font-bold px-2.5 py-0.5 bg-amber-100 text-amber-800 rounded-full">
-                            {edCategory}
-                          </span>
-                        )}
+                        <span className="text-xs font-bold px-2.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full">
+                          {editorTarget.toUpperCase()}
+                        </span>
                       </div>
 
                       <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-4">
-                        <div className="flex items-start space-x-3">
-                          <span className="w-7 h-7 rounded-lg bg-emerald-700 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
-                            {edId || '1'}
-                          </span>
-                          <div className="text-gray-900 font-medium text-sm md:text-base leading-relaxed whitespace-pre-line">
-                            <MathText text={edQuestion || 'Pratinjau soal akan muncul di sini...'} />
+                        {editorTarget === 'section' ? (
+                          <div className="space-y-3">
+                            <h3 className="text-base font-bold text-emerald-900">{edHeading}</h3>
+                            <p className="text-gray-700 text-sm leading-relaxed">
+                              <MathText text={edParagraph} />
+                            </p>
+                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm">
+                              <MathText text={edFormula} />
+                            </div>
                           </div>
-                        </div>
+                        ) : editorTarget === 'topic' ? (
+                          <div className="space-y-2">
+                            <h3 className="text-base font-bold text-emerald-900">Topik: {edTopicTitle} ({edTopicId})</h3>
+                            <p className="text-xs text-gray-600">Catatan Pelatih: {edCoachNote}</p>
+                            <p className="text-xs text-emerald-700 font-semibold">Memuat templat Sections, Examples, & Exercises.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <div className="flex items-start space-x-3">
+                              <span className="w-7 h-7 rounded-lg bg-emerald-700 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                {edId || '1'}
+                              </span>
+                              <div className="text-gray-900 font-medium text-sm md:text-base leading-relaxed whitespace-pre-line">
+                                <MathText text={edQuestion || 'Pratinjau teks akan muncul di sini...'} />
+                              </div>
+                            </div>
 
-                        {editorTarget !== 'example' && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-0 sm:pl-10">
-                            {edOptions.map((opt, idx) => {
-                              const isKey = edCorrectIdx === idx;
-                              return (
-                                <div
-                                  key={idx}
-                                  className={`px-3.5 py-2 rounded-lg border text-sm flex items-center justify-between ${
-                                    isKey
-                                      ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold'
-                                      : 'border-gray-200 bg-white text-gray-700'
-                                  }`}
-                                >
-                                  <MathText text={opt || `Opsi ${String.fromCharCode(65 + idx)}`} />
-                                  {isKey && <CheckCircle size={14} className="text-emerald-600 shrink-0" />}
-                                </div>
-                              );
-                            })}
+                            {editorTarget !== 'example' && (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-0 sm:pl-10">
+                                {edOptions.map((opt, idx) => {
+                                  const isKey = edCorrectIdx === idx;
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className={`px-3.5 py-2 rounded-lg border text-sm flex items-center justify-between ${
+                                        isKey
+                                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold'
+                                          : 'border-gray-200 bg-white text-gray-700'
+                                      }`}
+                                    >
+                                      <MathText text={opt || `Opsi ${String.fromCharCode(65 + idx)}`} />
+                                      {isKey && <CheckCircle size={14} className="text-emerald-600 shrink-0" />}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-xs md:text-sm text-emerald-950 space-y-1">
+                              <p className="font-bold text-emerald-800">Pembahasan:</p>
+                              <div className="leading-relaxed whitespace-pre-line">
+                                <MathText text={edDiscussion || 'Pratinjau pembahasan akan muncul di sini...'} />
+                              </div>
+                            </div>
                           </div>
                         )}
-
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-xs md:text-sm text-emerald-950 space-y-1">
-                          <p className="font-bold text-emerald-800">Pembahasan:</p>
-                          <div className="leading-relaxed whitespace-pre-line">
-                            <MathText text={edDiscussion || 'Pratinjau pembahasan akan muncul di sini...'} />
-                          </div>
-                        </div>
                       </div>
                     </div>
 
@@ -1349,7 +1536,7 @@ export default function App() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
                           <Code size={18} className="text-emerald-400" />
-                          <h3 className="text-sm font-bold text-white">3. Kode Siap Tempel (App.jsx)</h3>
+                          <h3 className="text-sm font-bold text-white">3. Kode Siap Tempel ({editorTarget})</h3>
                         </div>
                         <button
                           onClick={handleCopyCode}
