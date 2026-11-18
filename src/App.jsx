@@ -22,7 +22,10 @@ import {
   Download,
   Upload,
   PlusCircle,
-  FolderPlus
+  FolderPlus,
+  GripVertical,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 
 const EDITOR_PASSWORD = 'punyawebolim';
@@ -81,6 +84,16 @@ const defaultCurriculumData = [
                   '$$a^2 - b^2 = (a - b)(a + b)$$',
                   '$$(a + b)^2 = a^2 + 2ab + b^2 \\quad \\text{dan} \\quad (a - b)^2 = a^2 - 2ab + b^2$$'
                 ]
+              },
+              {
+                heading: '2. Bilangan Rasional & Pecahan Teleskopik',
+                paragraphs: [
+                  'Bilangan rasional adalah bilangan yang dapat dinyatakan dalam bentuk $\\frac{a}{b}$ dengan $a, b$ bilangan bulat dan $b \\neq 0$. Pada soal kompetisi, penjumlahan pecahan berpola sering diselesaikan menggunakan teknik pemecahan parsial (deret teleskopik):'
+                ],
+                formulas: [
+                  '$$\\frac{1}{n(n+1)} = \\frac{1}{n} - \\frac{1}{n+1}$$',
+                  '$$\\frac{1}{n(n+k)} = \\frac{1}{k}\\left(\\frac{1}{n} - \\frac{1}{n+k}\\right)$$'
+                ]
               }
             ],
             examples: [
@@ -90,6 +103,12 @@ const defaultCurriculumData = [
                   'Hitunglah nilai dari $\\frac{1}{1 \\times 2} + \\frac{1}{2 \\times 3} + \\dots + \\frac{1}{99 \\times 100}$.',
                 solution:
                   'Gunakan identitas pecahan teleskopik $\\frac{1}{n(n+1)} = \\frac{1}{n} - \\frac{1}{n+1}$ pada setiap suku:\n$$1 - \\frac{1}{100} = \\frac{99}{100}$$'
+              },
+              {
+                number: 2,
+                problem: 'Sederhanakan bentuk akar berikut: $\\sqrt{7 + 2\\sqrt{12}} - \\sqrt{7 - 2\\sqrt{12}}$.',
+                solution:
+                  'Karena $4 + 3 = 7$ dan $4 \\times 3 = 12$, maka $(2 + \\sqrt{3}) - (2 - \\sqrt{3}) = 2\\sqrt{3}$.'
               }
             ],
             exercises: [
@@ -100,8 +119,31 @@ const defaultCurriculumData = [
                 answer: '4051',
                 discussion:
                   'Gunakan sifat $a^2 - b^2 = (a - b)(a + b) = (2026 - 2025)(2026 + 2025) = 1 \\times 4051 = 4051$.'
+              },
+              {
+                id: 2,
+                question: 'Bentuk sederhana dari $\\sqrt{11 + 2\\sqrt{30}}$ adalah...',
+                options: ['$\\sqrt{6} + \\sqrt{5}$', '$\\sqrt{10} + 1$', '$3 + \\sqrt{2}$', '$\\sqrt{15} + \\sqrt{2}$'],
+                answer: '$\\sqrt{6} + \\sqrt{5}$',
+                discussion:
+                  'Karena $6 + 5 = 11$ dan $6 \\times 5 = 30$, maka $\\sqrt{(6 + 5) + 2\\sqrt{6 \\times 5}} = \\sqrt{6} + \\sqrt{5}$.'
               }
             ]
+          },
+          {
+            id: 't2',
+            title: 'Perbandingan Senilai dan Berbalik Nilai',
+            coachNote:
+              'Pada soal pekerjaan bersama, jumlahkan kecepatan (laju) kerja per satuan waktu, bukan waktu pengerjaannya.',
+            sections: [
+              {
+                heading: '1. Perbandingan Senilai & Berbalik Nilai',
+                paragraphs: ['Gunakan konsep laju gabungan $\\frac{1}{t_{\\text{gab}}} = \\frac{1}{t_A} + \\frac{1}{t_B}$.'],
+                formulas: ['$$\\frac{x_1}{x_2} = \\frac{y_1}{y_2} \\qquad \\text{dan} \\qquad x_1 \\times y_1 = x_2 \\times y_2$$']
+              }
+            ],
+            examples: [],
+            exercises: []
           }
         ]
       }
@@ -172,8 +214,25 @@ const defaultQuestionBank = [
     answer: '2',
     discussion:
       'Gunakan pola modulo $7$ untuk perpangkatan $2$: $2^1 \\equiv 2$, $2^2 \\equiv 4$, $2^3 \\equiv 1 \\pmod{7}$. Karena $100$ dibagi $3$ bersisa $1$, maka $2^{100} \\equiv 2^1 \\equiv 2 \\pmod{7}$.'
+  },
+  {
+    id: 2,
+    category: 'Aljabar',
+    question: 'Jika $x + \\frac{1}{x} = 3$, tentukan nilai dari $x^3 + \\frac{1}{x^3}$.',
+    options: ['18', '27', '24', '21'],
+    answer: '18',
+    discussion:
+      'Gunakan penjabaran kubus: $\\left(x + \\frac{1}{x}\\right)^3 = x^3 + \\frac{1}{x^3} + 3\\left(x + \\frac{1}{x}\\right)$. Substitusi nilai $3$: $27 = x^3 + \\frac{1}{x^3} + 9 \\implies x^3 + \\frac{1}{x^3} = 18$.'
   }
 ];
+
+// Helper pemindah elemen array dari fromIndex ke toIndex
+function reorderList(list, fromIndex, toIndex) {
+  const result = Array.from(list);
+  const [removed] = result.splice(fromIndex, 1);
+  result.splice(toIndex, 0, removed);
+  return result;
+}
 
 export default function App() {
   // Penyimpanan Lokal (LocalStorage)
@@ -202,17 +261,18 @@ export default function App() {
   });
 
   const [selectedTopicId, setSelectedTopicId] = useState('t1');
-  
-  // Pastikan topik terpilih selalu valid
+
   const allTopics = curriculumData.flatMap((l) => l.units).flatMap((u) => u.topics);
-  const selectedTopic = allTopics.find((t) => t.id === selectedTopicId) || allTopics[0] || {
-    id: 't-fallback',
-    title: 'Topik Kosong',
-    coachNote: 'Silakan buat unit dan topik baru via Mode Editor.',
-    sections: [],
-    examples: [],
-    exercises: []
-  };
+  const selectedTopic =
+    allTopics.find((t) => t.id === selectedTopicId) ||
+    allTopics[0] || {
+      id: 't-fallback',
+      title: 'Topik Kosong',
+      coachNote: 'Silakan buat unit dan topik baru via Mode Editor.',
+      sections: [],
+      examples: [],
+      exercises: []
+    };
 
   const [completed, setCompleted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -250,9 +310,14 @@ export default function App() {
   const [secretClicks, setSecretClicks] = useState(0);
 
   // State Form Editor Konten Soal & Materi
-  const [editorTarget, setEditorTarget] = useState('exercise'); // 'exercise' | 'example' | 'section' | 'mixed' | 'unit' | 'topic'
+  const [editorTarget, setEditorTarget] = useState('exercise'); // 'unit' | 'topic' | 'exercise' | 'example' | 'section' | 'mixed'
   const [editingIndex, setEditingIndex] = useState(null);
   const [confirmDeleteIdx, setConfirmDeleteIdx] = useState(null);
+
+  // State Drag & Drop Reorder
+  const [draggedIdx, setDraggedIdx] = useState(null);
+  const [dragOverIdx, setDragOverIdx] = useState(null);
+  const [draggedLevelId, setDraggedLevelId] = useState(null);
 
   const [edCategory, setEdCategory] = useState('Aljabar');
   const [edQuestion, setEdQuestion] = useState('');
@@ -328,7 +393,13 @@ export default function App() {
 
   const showToast = (msg) => {
     setSaveNotification(msg);
-    setTimeout(() => setSaveNotification(''), 3500);
+    setTimeout(() => setSaveNotification(''), 3000);
+  };
+
+  const resetDragState = () => {
+    setDraggedIdx(null);
+    setDragOverIdx(null);
+    setDraggedLevelId(null);
   };
 
   const resetFormFields = () => {
@@ -336,6 +407,7 @@ export default function App() {
     setConfirmDeleteIdx(null);
     setEditingUnitId(null);
     setEditingTopicId(null);
+    resetDragState();
     setEdQuestion('');
     setEdOptions(['', '', '', '']);
     setEdCorrectIdx(0);
@@ -410,6 +482,133 @@ export default function App() {
     });
   };
 
+  // ==========================================
+  // LOGIKA PENGURUTAN (DRAG & DROP / GESER)
+  // ==========================================
+  const applyReorder = (fromIdx, toIdx, levelIdOverride = null) => {
+    if (fromIdx === null || toIdx === null || fromIdx === toIdx) return;
+
+    // 1. Geser antar Unit di dalam Level
+    if (editorTarget === 'unit' && levelIdOverride) {
+      const updatedCurriculum = curriculumData.map((lvl) => {
+        if (lvl.levelId !== levelIdOverride) return lvl;
+        if (toIdx < 0 || toIdx >= lvl.units.length) return lvl;
+        return {
+          ...lvl,
+          units: reorderList(lvl.units, fromIdx, toIdx)
+        };
+      });
+      setCurriculumData(updatedCurriculum);
+      localStorage.setItem('jagomatika_curriculum', JSON.stringify(updatedCurriculum));
+      resetFormFields();
+      showToast('↕️ Urutan Unit berhasil diperbarui!');
+      return;
+    }
+
+    // 2. Geser antar Sub-Unit / Topik di dalam Unit terpilih
+    if (editorTarget === 'topic') {
+      const lvlObj = curriculumData.find((l) => l.levelId === targetLevelId);
+      const activeUnitId = targetUnitId || lvlObj?.units[0]?.id;
+      if (!activeUnitId) return;
+
+      const updatedCurriculum = curriculumData.map((lvl) => {
+        if (lvl.levelId !== targetLevelId) return lvl;
+        return {
+          ...lvl,
+          units: lvl.units.map((u) => {
+            if (u.id !== activeUnitId) return u;
+            if (toIdx < 0 || toIdx >= u.topics.length) return u;
+            return {
+              ...u,
+              topics: reorderList(u.topics, fromIdx, toIdx)
+            };
+          })
+        };
+      });
+      setCurriculumData(updatedCurriculum);
+      localStorage.setItem('jagomatika_curriculum', JSON.stringify(updatedCurriculum));
+      resetFormFields();
+      showToast('↕️ Urutan Sub-Unit / Topik berhasil diperbarui!');
+      return;
+    }
+
+    // 3. Geser antar Bank Soal Campuran (dan rapikan nomor urut ID)
+    if (editorTarget === 'mixed') {
+      if (toIdx < 0 || toIdx >= questionBank.length) return;
+      const reordered = reorderList(questionBank, fromIdx, toIdx).map((item, idx) => ({
+        ...item,
+        id: idx + 1
+      }));
+      setQuestionBank(reordered);
+      localStorage.setItem('jagomatika_questionbank', JSON.stringify(reordered));
+      resetFormFields();
+      showToast('↕️ Urutan Bank Soal Campuran berhasil diperbarui!');
+      return;
+    }
+
+    // 4. Geser antar Latihan Mandiri, Contoh Soal, atau Materi/Teori di Topik
+    const updatedCurriculum = curriculumData.map((lvl) => ({
+      ...lvl,
+      units: lvl.units.map((unt) => ({
+        ...unt,
+        topics: unt.topics.map((top) => {
+          if (top.id !== selectedTopic.id) return top;
+          const newTop = { ...top };
+
+          if (editorTarget === 'exercise' && top.exercises) {
+            if (toIdx < 0 || toIdx >= top.exercises.length) return top;
+            newTop.exercises = reorderList(top.exercises, fromIdx, toIdx).map((item, idx) => ({
+              ...item,
+              id: idx + 1
+            }));
+          } else if (editorTarget === 'example' && top.examples) {
+            if (toIdx < 0 || toIdx >= top.examples.length) return top;
+            newTop.examples = reorderList(top.examples, fromIdx, toIdx).map((item, idx) => ({
+              ...item,
+              number: idx + 1
+            }));
+          } else if (editorTarget === 'section' && top.sections) {
+            if (toIdx < 0 || toIdx >= top.sections.length) return top;
+            newTop.sections = reorderList(top.sections, fromIdx, toIdx);
+          }
+
+          return newTop;
+        })
+      }))
+    }));
+
+    setCurriculumData(updatedCurriculum);
+    localStorage.setItem('jagomatika_curriculum', JSON.stringify(updatedCurriculum));
+    resetFormFields();
+    showToast('↕️ Urutan item berhasil diperbarui!');
+  };
+
+  const handleDragStart = (e, idx, levelId = null) => {
+    setDraggedIdx(idx);
+    setDraggedLevelId(levelId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(idx));
+  };
+
+  const handleDragOver = (e, idx, levelId = null) => {
+    e.preventDefault();
+    if (editorTarget === 'unit' && levelId !== draggedLevelId) return;
+    if (dragOverIdx !== idx) {
+      setDragOverIdx(idx);
+    }
+  };
+
+  const handleDrop = (e, toIdx, levelId = null) => {
+    e.preventDefault();
+    if (editorTarget === 'unit' && levelId !== draggedLevelId) {
+      resetDragState();
+      return;
+    }
+    const fromIdx = draggedIdx !== null ? draggedIdx : Number(e.dataTransfer.getData('text/plain'));
+    applyReorder(fromIdx, toIdx, levelId);
+    resetDragState();
+  };
+
   // HANDLER CRUD UNIT & TOPIK
   const handleSaveUnit = () => {
     if (!edUnitTitle.trim()) {
@@ -460,7 +659,9 @@ export default function App() {
       showToast('⚠️ Judul topik tidak boleh kosong.');
       return;
     }
-    if (!targetUnitId) {
+    const lvlObj = curriculumData.find((l) => l.levelId === targetLevelId);
+    const activeUnitId = targetUnitId || lvlObj?.units[0]?.id;
+    if (!activeUnitId) {
       showToast('⚠️ Pilih unit tujuan terlebih dahulu.');
       return;
     }
@@ -468,7 +669,7 @@ export default function App() {
     const updatedCurriculum = curriculumData.map((lvl) => {
       if (lvl.levelId !== targetLevelId) return lvl;
       const unitsList = lvl.units.map((u) => {
-        if (u.id !== targetUnitId) return u;
+        if (u.id !== activeUnitId) return u;
         const topicsList = [...u.topics];
         if (editingTopicId) {
           const idx = topicsList.findIndex((t) => t.id === editingTopicId);
@@ -1071,7 +1272,7 @@ export default function App() {
                 <div className="bg-slate-900 text-white rounded-2xl p-6 md:p-8 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div className="space-y-2 flex-1">
                     <span className="bg-emerald-500/20 text-emerald-300 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full border border-emerald-400/30">
-                      CMS Mode Editor (Unit, Sub-Unit, & Soal)
+                      CMS Mode Editor (Drag & Drop Urutan)
                     </span>
                     <h1 className="text-2xl md:text-3xl font-extrabold">Kelola Menu & Konten Olimpiade</h1>
                     {editorTarget !== 'mixed' && editorTarget !== 'unit' && editorTarget !== 'topic' && (
@@ -1190,7 +1391,9 @@ export default function App() {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1">Judul Unit (Contoh: Unit 3: Aljabar)</label>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">
+                          Judul Unit (Contoh: Unit 2: Aljabar Dasar)
+                        </label>
                         <input
                           type="text"
                           value={edUnitTitle}
@@ -1209,39 +1412,86 @@ export default function App() {
                       <span>{editingUnitId ? 'Simpan Perubahan Unit' : 'Tambah Unit Baru'}</span>
                     </button>
 
-                    {/* Daftar Unit per Level untuk Diedit/Dihapus */}
+                    {/* Daftar Unit per Level dengan Drag & Drop */}
                     <div className="pt-4 border-t space-y-4">
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Daftar Unit Saat Ini</h3>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                          Daftar Unit Saat Ini (Tahan klik kiri & geser untuk mengurutkan)
+                        </h3>
+                      </div>
                       {curriculumData.map((lvl) => (
                         <div key={lvl.levelId} className="space-y-2">
                           <p className="text-xs font-bold text-emerald-800">{lvl.levelTitle}</p>
                           <div className="grid grid-cols-1 gap-2">
-                            {lvl.units.map((u) => (
-                              <div
-                                key={u.id}
-                                className="flex items-center justify-between p-3 bg-gray-50 border rounded-xl text-xs"
-                              >
-                                <span className="font-semibold text-gray-900">{u.title}</span>
-                                <div className="flex items-center space-x-2">
-                                  <button
-                                    onClick={() => {
-                                      setTargetLevelId(lvl.levelId);
-                                      setEditingUnitId(u.id);
-                                      setEdUnitTitle(u.title);
-                                    }}
-                                    className="px-2.5 py-1 bg-amber-100 text-amber-900 rounded-lg font-bold"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteUnit(lvl.levelId, u.id)}
-                                    className="px-2.5 py-1 bg-red-100 text-red-700 rounded-lg font-bold"
-                                  >
-                                    Hapus
-                                  </button>
+                            {lvl.units.map((u, uIdx) => {
+                              const isDragging = draggedIdx === uIdx && draggedLevelId === lvl.levelId;
+                              const isDragOver = dragOverIdx === uIdx && draggedLevelId === lvl.levelId;
+
+                              return (
+                                <div
+                                  key={u.id}
+                                  draggable
+                                  onDragStart={(e) => handleDragStart(e, uIdx, lvl.levelId)}
+                                  onDragOver={(e) => handleDragOver(e, uIdx, lvl.levelId)}
+                                  onDrop={(e) => handleDrop(e, uIdx, lvl.levelId)}
+                                  onDragEnd={resetDragState}
+                                  className={`flex items-center justify-between p-3 border rounded-xl text-xs transition-all cursor-grab active:cursor-grabbing ${
+                                    isDragging
+                                      ? 'opacity-40 bg-emerald-50 border-emerald-400'
+                                      : isDragOver
+                                        ? 'border-emerald-600 ring-2 ring-emerald-300 bg-emerald-50/70'
+                                        : 'bg-gray-50 border-gray-200 hover:bg-gray-100/80'
+                                  }`}
+                                >
+                                  <div className="flex items-center space-x-2.5 min-w-0 pr-3">
+                                    <GripVertical size={16} className="text-gray-400 shrink-0" />
+                                    <span className="w-6 h-6 rounded-md bg-slate-800 text-white font-bold flex items-center justify-center shrink-0">
+                                      {uIdx + 1}
+                                    </span>
+                                    <span className="font-semibold text-gray-900 truncate">{u.title}</span>
+                                  </div>
+
+                                  <div className="flex items-center space-x-1.5 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => applyReorder(uIdx, uIdx - 1, lvl.levelId)}
+                                      disabled={uIdx === 0}
+                                      title="Geser ke atas"
+                                      className="p-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
+                                    >
+                                      <ArrowUp size={13} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyReorder(uIdx, uIdx + 1, lvl.levelId)}
+                                      disabled={uIdx === lvl.units.length - 1}
+                                      title="Geser ke bawah"
+                                      className="p-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
+                                    >
+                                      <ArrowDown size={13} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setTargetLevelId(lvl.levelId);
+                                        setEditingUnitId(u.id);
+                                        setEdUnitTitle(u.title);
+                                      }}
+                                      className="px-2.5 py-1.5 bg-amber-100 text-amber-900 rounded-lg font-bold hover:bg-amber-200"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteUnit(lvl.levelId, u.id)}
+                                      className="px-2.5 py-1.5 bg-red-100 text-red-700 rounded-lg font-bold hover:bg-red-200"
+                                    >
+                                      Hapus
+                                    </button>
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       ))}
@@ -1342,38 +1592,86 @@ export default function App() {
                       <span>{editingTopicId ? 'Simpan Perubahan Topik' : 'Tambah Topik Baru'}</span>
                     </button>
 
-                    {/* Daftar Topik di Unit Terpilih */}
+                    {/* Daftar Topik di Unit Terpilih dengan Drag & Drop */}
                     <div className="pt-4 border-t space-y-3">
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Daftar Sub-Unit dalam Unit Ini</h3>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                        Daftar Sub-Unit dalam Unit Ini (Tahan klik kiri & geser untuk mengurutkan)
+                      </h3>
                       {(() => {
                         const lvlObj = curriculumData.find((l) => l.levelId === targetLevelId);
                         const unitObj = lvlObj?.units.find((u) => u.id === (targetUnitId || lvlObj.units[0]?.id));
                         if (!unitObj || !unitObj.topics || unitObj.topics.length === 0) {
                           return <p className="text-xs text-gray-400 italic">Belum ada topik pada unit ini.</p>;
                         }
-                        return unitObj.topics.map((t) => (
-                          <div key={t.id} className="flex items-center justify-between p-3 bg-gray-50 border rounded-xl text-xs">
-                            <span className="font-semibold text-gray-900">{t.title}</span>
-                            <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() => {
-                                  setEditingTopicId(t.id);
-                                  setEdTopicTitle(t.title);
-                                  setEdCoachNote(t.coachNote || '');
-                                }}
-                                className="px-2.5 py-1 bg-amber-100 text-amber-900 rounded-lg font-bold"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDeleteTopic(targetLevelId, unitObj.id, t.id)}
-                                className="px-2.5 py-1 bg-red-100 text-red-700 rounded-lg font-bold"
-                              >
-                                Hapus
-                              </button>
+                        return unitObj.topics.map((t, tIdx) => {
+                          const isDragging = draggedIdx === tIdx;
+                          const isDragOver = dragOverIdx === tIdx;
+
+                          return (
+                            <div
+                              key={t.id}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, tIdx)}
+                              onDragOver={(e) => handleDragOver(e, tIdx)}
+                              onDrop={(e) => handleDrop(e, tIdx)}
+                              onDragEnd={resetDragState}
+                              className={`flex items-center justify-between p-3 border rounded-xl text-xs transition-all cursor-grab active:cursor-grabbing ${
+                                isDragging
+                                  ? 'opacity-40 bg-emerald-50 border-emerald-400'
+                                  : isDragOver
+                                    ? 'border-emerald-600 ring-2 ring-emerald-300 bg-emerald-50/70'
+                                    : 'bg-gray-50 border-gray-200 hover:bg-gray-100/80'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-2.5 min-w-0 pr-3">
+                                <GripVertical size={16} className="text-gray-400 shrink-0" />
+                                <span className="w-6 h-6 rounded-md bg-slate-800 text-white font-bold flex items-center justify-center shrink-0">
+                                  {tIdx + 1}
+                                </span>
+                                <span className="font-semibold text-gray-900 truncate">{t.title}</span>
+                              </div>
+
+                              <div className="flex items-center space-x-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => applyReorder(tIdx, tIdx - 1)}
+                                  disabled={tIdx === 0}
+                                  title="Geser ke atas"
+                                  className="p-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
+                                >
+                                  <ArrowUp size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => applyReorder(tIdx, tIdx + 1)}
+                                  disabled={tIdx === unitObj.topics.length - 1}
+                                  title="Geser ke bawah"
+                                  className="p-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
+                                >
+                                  <ArrowDown size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingTopicId(t.id);
+                                    setEdTopicTitle(t.title);
+                                    setEdCoachNote(t.coachNote || '');
+                                  }}
+                                  className="px-2.5 py-1.5 bg-amber-100 text-amber-900 rounded-lg font-bold hover:bg-amber-200"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTopic(targetLevelId, unitObj.id, t.id)}
+                                  className="px-2.5 py-1.5 bg-red-100 text-red-700 rounded-lg font-bold hover:bg-red-200"
+                                >
+                                  Hapus
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        ));
+                          );
+                        });
                       })()}
                     </div>
                   </div>
@@ -1389,7 +1687,11 @@ export default function App() {
                     >
                       <div className="flex items-center justify-between border-b pb-3">
                         <div className="flex items-center space-x-2">
-                          {editingIndex !== null ? <Edit3 size={18} className="text-amber-600" /> : <PlusCircle size={18} className="text-emerald-700" />}
+                          {editingIndex !== null ? (
+                            <Edit3 size={18} className="text-amber-600" />
+                          ) : (
+                            <PlusCircle size={18} className="text-emerald-700" />
+                          )}
                           <h2 className="text-base font-bold text-gray-900">
                             {editingIndex !== null ? `Edit Item #${editingIndex + 1}` : `Tambah ke: ${selectedTopic.title}`}
                           </h2>
@@ -1503,14 +1805,18 @@ export default function App() {
 
                           {editorTarget !== 'example' && (
                             <div className="space-y-2">
-                              <label className="block text-xs font-bold text-gray-700">Pilihan Jawaban (Klik huruf untuk kunci)</label>
+                              <label className="block text-xs font-bold text-gray-700">
+                                Pilihan Jawaban (Klik huruf untuk kunci)
+                              </label>
                               {edOptions.map((opt, idx) => (
                                 <div key={idx} className="flex items-center space-x-2">
                                   <button
                                     type="button"
                                     onClick={() => setEdCorrectIdx(idx)}
                                     className={`w-8 h-8 rounded-lg text-xs font-bold shrink-0 border ${
-                                      edCorrectIdx === idx ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-gray-100 text-gray-600'
+                                      edCorrectIdx === idx
+                                        ? 'bg-emerald-700 text-white border-emerald-700'
+                                        : 'bg-gray-100 text-gray-600'
                                     }`}
                                   >
                                     {String.fromCharCode(65 + idx)}
@@ -1567,8 +1873,12 @@ export default function App() {
                         <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-4">
                           {editorTarget === 'section' ? (
                             <div className="space-y-3">
-                              <h3 className="text-base font-bold text-emerald-900"><MathText text={edHeading || 'Judul Sub-Bab...'} /></h3>
-                              <p className="text-gray-700 text-sm whitespace-pre-line"><MathText text={edParagraph || 'Pratinjau paragraf...'} /></p>
+                              <h3 className="text-base font-bold text-emerald-900">
+                                <MathText text={edHeading || 'Judul Sub-Bab...'} />
+                              </h3>
+                              <p className="text-gray-700 text-sm whitespace-pre-line">
+                                <MathText text={edParagraph || 'Pratinjau paragraf...'} />
+                              </p>
                               {edFormula && (
                                 <div className="bg-slate-50 border p-3 rounded-lg text-sm whitespace-pre-line">
                                   <MathText text={edFormula} />
@@ -1586,7 +1896,9 @@ export default function App() {
                                     <div
                                       key={idx}
                                       className={`px-3.5 py-2 rounded-lg border text-sm flex items-center justify-between ${
-                                        edCorrectIdx === idx ? 'border-emerald-600 bg-emerald-50 font-bold text-emerald-900' : 'bg-white text-gray-700'
+                                        edCorrectIdx === idx
+                                          ? 'border-emerald-600 bg-emerald-50 font-bold text-emerald-900'
+                                          : 'bg-white text-gray-700'
                                       }`}
                                     >
                                       <MathText text={opt || `Opsi ${String.fromCharCode(65 + idx)}`} />
@@ -1607,14 +1919,17 @@ export default function App() {
                   </div>
                 )}
 
-                {/* DAFTAR ITEM TERSIMPAN (Kecuali tab Unit & Topic) */}
+                {/* DAFTAR ITEM TERSIMPAN DENGAN DRAG & DROP (Kecuali tab Unit & Topic) */}
                 {editorTarget !== 'unit' && editorTarget !== 'topic' && (
                   <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
                       <div>
-                        <h2 className="text-base font-bold text-gray-900">Daftar Konten Tersimpan ({savedItemsList.length} Item)</h2>
+                        <h2 className="text-base font-bold text-gray-900">
+                          Daftar Konten Tersimpan ({savedItemsList.length} Item)
+                        </h2>
                         <p className="text-xs text-gray-500">
-                          {editorTarget === 'mixed' ? 'Bank Soal Campuran' : `Topik: ${selectedTopic.title}`}
+                          {editorTarget === 'mixed' ? 'Bank Soal Campuran' : `Topik: ${selectedTopic.title}`} —{' '}
+                          <span className="text-emerald-700 font-semibold">Tahan klik kiri & geser kartu untuk mengubah urutan</span>
                         </p>
                       </div>
                     </div>
@@ -1628,17 +1943,35 @@ export default function App() {
                         {savedItemsList.map((item, idx) => {
                           const isCurrentlyEditing = editingIndex === idx;
                           const isConfirmingDelete = confirmDeleteIdx === idx;
+                          const isDragging = draggedIdx === idx;
+                          const isDragOver = dragOverIdx === idx;
                           const previewTitle =
-                            editorTarget === 'section' ? item.heading : editorTarget === 'example' ? item.problem : item.question;
+                            editorTarget === 'section'
+                              ? item.heading
+                              : editorTarget === 'example'
+                                ? item.problem
+                                : item.question;
 
                           return (
                             <div
                               key={idx}
-                              className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
-                                isCurrentlyEditing ? 'border-amber-400 bg-amber-50/60' : 'border-gray-200 bg-gray-50/40 hover:bg-gray-50'
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, idx)}
+                              onDragOver={(e) => handleDragOver(e, idx)}
+                              onDrop={(e) => handleDrop(e, idx)}
+                              onDragEnd={resetDragState}
+                              className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all cursor-grab active:cursor-grabbing ${
+                                isDragging
+                                  ? 'opacity-40 bg-emerald-50 border-emerald-400'
+                                  : isDragOver
+                                    ? 'border-emerald-600 ring-2 ring-emerald-300 bg-emerald-50/70'
+                                    : isCurrentlyEditing
+                                      ? 'border-amber-400 bg-amber-50/60'
+                                      : 'border-gray-200 bg-gray-50/40 hover:bg-gray-50'
                               }`}
                             >
                               <div className="flex items-start space-x-3 min-w-0 flex-1">
+                                <GripVertical size={18} className="text-gray-400 shrink-0 mt-1" />
                                 <span className="w-7 h-7 rounded-lg bg-slate-800 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
                                   {idx + 1}
                                 </span>
@@ -1659,7 +1992,25 @@ export default function App() {
                                 </div>
                               </div>
 
-                              <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+                              <div className="flex items-center space-x-1.5 shrink-0 self-end sm:self-center">
+                                <button
+                                  type="button"
+                                  onClick={() => applyReorder(idx, idx - 1)}
+                                  disabled={idx === 0}
+                                  title="Geser ke atas"
+                                  className="p-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
+                                >
+                                  <ArrowUp size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => applyReorder(idx, idx + 1)}
+                                  disabled={idx === savedItemsList.length - 1}
+                                  title="Geser ke bawah"
+                                  className="p-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
+                                >
+                                  <ArrowDown size={14} />
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => handleStartEditItem(idx, item)}
@@ -1762,7 +2113,9 @@ export default function App() {
                             className={`p-4 rounded-xl border-2 text-left transition-all text-sm font-medium flex items-center justify-between ${btnStyle}`}
                           >
                             <MathText text={opt} />
-                            {selectedAnswer !== null && isCorrect && <CheckCircle size={16} className="text-emerald-600 shrink-0" />}
+                            {selectedAnswer !== null && isCorrect && (
+                              <CheckCircle size={16} className="text-emerald-600 shrink-0" />
+                            )}
                           </button>
                         );
                       })}
@@ -1815,7 +2168,9 @@ export default function App() {
                     <button
                       onClick={() => setCompleted(!completed)}
                       className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm ${
-                        completed ? 'bg-emerald-700 text-white' : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
+                        completed
+                          ? 'bg-emerald-700 text-white'
+                          : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
                       }`}
                     >
                       <CheckCircle size={16} />
@@ -1864,13 +2219,17 @@ export default function App() {
                       )}
 
                       <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl text-sm text-amber-900">
-                        <strong>Catatan Pelatih:</strong> <MathText text={selectedTopic.coachNote || 'Pelajari materi di atas dengan seksama.'} />
+                        <strong>Catatan Pelatih:</strong>{' '}
+                        <MathText text={selectedTopic.coachNote || 'Pelajari materi di atas dengan seksama.'} />
                       </div>
                     </section>
 
                     {/* CONTOH SOAL */}
                     {selectedTopic.examples && selectedTopic.examples.length > 0 && (
-                      <section id="contoh-soal" className="bg-white p-6 md:p-8 rounded-2xl border border-gray-200/80 shadow-sm space-y-6">
+                      <section
+                        id="contoh-soal"
+                        className="bg-white p-6 md:p-8 rounded-2xl border border-gray-200/80 shadow-sm space-y-6"
+                      >
                         <div className="flex items-center space-x-2 border-b pb-3">
                           <Lightbulb size={20} className="text-amber-600" />
                           <h2 className="text-lg font-bold text-gray-900">Contoh Soal & Pembahasan Olimpiade</h2>
@@ -1899,14 +2258,21 @@ export default function App() {
 
                     {/* LATIHAN MANDIRI */}
                     {selectedTopic.exercises && selectedTopic.exercises.length > 0 && (
-                      <section id="latihan-mandiri" className="bg-white p-6 md:p-8 rounded-2xl border border-gray-200/80 shadow-sm space-y-6">
+                      <section
+                        id="latihan-mandiri"
+                        className="bg-white p-6 md:p-8 rounded-2xl border border-gray-200/80 shadow-sm space-y-6"
+                      >
                         <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
                           <div className="flex items-center space-x-2">
                             <Award size={20} className="text-emerald-700" />
-                            <h2 className="text-lg font-bold text-gray-900">Latihan Mandiri ({selectedTopic.exercises.length} Soal)</h2>
+                            <h2 className="text-lg font-bold text-gray-900">
+                              Latihan Mandiri ({selectedTopic.exercises.length} Soal)
+                            </h2>
                           </div>
                           <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                            Skor Sementara: {selectedTopic.exercises.filter((q) => topicAnswers[q.id] === q.answer).length} / {selectedTopic.exercises.length}
+                            Skor Sementara:{' '}
+                            {selectedTopic.exercises.filter((q) => topicAnswers[q.id] === q.answer).length} /{' '}
+                            {selectedTopic.exercises.length}
                           </span>
                         </div>
 
@@ -1930,11 +2296,14 @@ export default function App() {
                                   {q.options.map((opt, oIdx) => {
                                     const isThisChosen = chosen === opt;
                                     const isThisCorrect = opt === q.answer;
-                                    let optionClass = 'border-gray-200 bg-white text-gray-700 hover:border-emerald-400 hover:bg-emerald-50/40';
+                                    let optionClass =
+                                      'border-gray-200 bg-white text-gray-700 hover:border-emerald-400 hover:bg-emerald-50/40';
 
                                     if (chosen) {
-                                      if (isThisCorrect) optionClass = 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold';
-                                      else if (isThisChosen && !isThisCorrect) optionClass = 'border-red-400 bg-red-50 text-red-900 font-bold';
+                                      if (isThisCorrect)
+                                        optionClass = 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold';
+                                      else if (isThisChosen && !isThisCorrect)
+                                        optionClass = 'border-red-400 bg-red-50 text-red-900 font-bold';
                                     }
 
                                     return (
@@ -1944,7 +2313,9 @@ export default function App() {
                                         className={`px-4 py-2.5 rounded-lg border text-left text-sm transition-all flex items-center justify-between ${optionClass}`}
                                       >
                                         <MathText text={opt} />
-                                        {chosen && isThisCorrect && <CheckCircle size={15} className="text-emerald-600 shrink-0" />}
+                                        {chosen && isThisCorrect && (
+                                          <CheckCircle size={15} className="text-emerald-600 shrink-0" />
+                                        )}
                                       </button>
                                     );
                                   })}
@@ -1962,8 +2333,12 @@ export default function App() {
 
                                 {isDiscOpen && (
                                   <div className="ml-0 sm:ml-10 bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-xs md:text-sm text-emerald-950 space-y-1">
-                                    <p className="font-bold">Kunci Jawaban: <MathText text={q.answer} /></p>
-                                    <div className="leading-relaxed whitespace-pre-line"><MathText text={q.discussion} /></div>
+                                    <p className="font-bold">
+                                      Kunci Jawaban: <MathText text={q.answer} />
+                                    </p>
+                                    <div className="leading-relaxed whitespace-pre-line">
+                                      <MathText text={q.discussion} />
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -1978,12 +2353,24 @@ export default function App() {
                     <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-sm sticky top-20">
                       <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Navigasi Modul</h4>
                       <ul className="space-y-2.5 text-xs font-medium text-gray-600">
-                        <li><a href="#materi" className="text-emerald-700 font-semibold hover:underline">01. Konsep & Rumus LaTeX</a></li>
+                        <li>
+                          <a href="#materi" className="text-emerald-700 font-semibold hover:underline">
+                            01. Konsep & Rumus LaTeX
+                          </a>
+                        </li>
                         {selectedTopic.examples && selectedTopic.examples.length > 0 && (
-                          <li><a href="#contoh-soal" className="hover:text-emerald-700 hover:underline">02. Contoh Soal</a></li>
+                          <li>
+                            <a href="#contoh-soal" className="hover:text-emerald-700 hover:underline">
+                              02. Contoh Soal
+                            </a>
+                          </li>
                         )}
                         {selectedTopic.exercises && selectedTopic.exercises.length > 0 && (
-                          <li><a href="#latihan-mandiri" className="hover:text-emerald-700 hover:underline">03. Latihan Mandiri</a></li>
+                          <li>
+                            <a href="#latihan-mandiri" className="hover:text-emerald-700 hover:underline">
+                              03. Latihan Mandiri
+                            </a>
+                          </li>
                         )}
                       </ul>
                     </div>
