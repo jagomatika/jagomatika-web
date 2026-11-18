@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, CheckCircle, ChevronDown, ChevronRight, Menu, X, Layers } from 'lucide-react';
+import { BookOpen, CheckCircle, ChevronDown, ChevronRight, Menu, X, Layers, Shuffle, Award, HelpCircle } from 'lucide-react';
 
 const curriculumData = [
   {
@@ -58,7 +58,7 @@ const curriculumData = [
   },
   {
     levelId: 'level-2',
-    levelTitle: 'Level 2: Menengah',
+    levelTitle: 'Level 2: Menengah (Standar OSK)',
     description: 'Penguasaan teknik standar kompetisi tingkat Kabupaten/Kota.',
     units: [
       {
@@ -104,7 +104,7 @@ const curriculumData = [
   },
   {
     levelId: 'level-3',
-    levelTitle: 'Level 3: Lanjut',
+    levelTitle: 'Level 3: Lanjut / Mahir (Standar OSN)',
     description: 'Persiapan tingkat Provinsi (OSP) hingga Nasional (OSN).',
     units: [
       {
@@ -139,36 +139,79 @@ const curriculumData = [
   }
 ];
 
+// Bank Soal Campuran untuk Mode Latihan Soal
+const questionBank = [
+  {
+    id: 1,
+    category: 'Teori Bilangan',
+    question: 'Berapakah sisa pembagian dari $2^{100}$ jika dibagi oleh 7?',
+    options: ['1', '2', '4', '6'],
+    answer: '2',
+    discussion: 'Gunakan pola modulo 7 untuk perpangkatan 2: $2^1 \\equiv 2$, $2^2 \\equiv 4$, $2^3 \\equiv 1$ (mod 7). Karena 100 dibagi 3 bersisa 1, maka $2^{100} \\equiv 2^1 \\equiv 2$ (mod 7).'
+  },
+  {
+    id: 2,
+    category: 'Aljabar',
+    question: 'Jika $x + \\frac{1}{x} = 3$, tentukan nilai dari $x^3 + \\frac{1}{x^3}$.',
+    options: ['18', '27', '24', '21'],
+    answer: '18',
+    discussion: 'Gunakan penjabaran kubus: $(x + \\frac{1}{x})^3 = x^3 + \\frac{1}{x^3} + 3(x + \\frac{1}{x})$. Substitusi nilai 3: $3^3 = x^3 + \\frac{1}{x^3} + 3(3) \\implies 27 = x^3 + \\frac{1}{x^3} + 9 \\implies x^3 + \\frac{1}{x^3} = 18$.'
+  },
+  {
+    id: 3,
+    category: 'Geometri',
+    question: 'Sebuah segitiga siku-siku memiliki panjang sisi siku-siku 6 cm dan 8 cm. Berapakah panjang garis berat yang ditarik dari sudut siku-siku ke sisi miring?',
+    options: ['5 cm', '6 cm', '10 cm', '4.8 cm'],
+    answer: '5 cm',
+    discussion: 'Sisi miring (hipotenusa) = $\\sqrt{6^2 + 8^2} = 10$ cm. Pada segitiga siku-siku, panjang garis berat ke sisi miring selalu setengah dari panjang sisi miring tersebut, yaitu $10 / 2 = 5$ cm.'
+  },
+  {
+    id: 4,
+    category: 'Kombinatorika',
+    question: 'Banyaknya cara menyusun huruf pada kata "MATEMATIKA" adalah...',
+    options: ['151.200', '302.400', '45.360', '90.720'],
+    answer: '151.200',
+    discussion: 'Total huruf = 10, dengan unsur ganda: M=2, A=3, T=2. Banyak susunan = $\\frac{10!}{2! \\times 3! \\times 2!} = \\frac{3.628.800}{2 \\times 6 \\times 2} = 151.200$.'
+  }
+];
+
 export default function App() {
   const [selectedTopic, setSelectedTopic] = useState(curriculumData[0].units[0].topics[0]);
   const [completed, setCompleted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isPracticeMode, setIsPracticeMode] = useState(false);
 
-  // State untuk mengontrol Level mana saja yang terbuka (Dropdown Level)
+  // State untuk Latihan Soal
+  const [currentQIndex, setCurrentQIndex] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [showDiscussion, setShowDiscussion] = useState(false);
+
   const [openLevels, setOpenLevels] = useState({
-    'level-1': true, // Level 1 terbuka secara default
+    'level-1': true,
     'level-2': false,
     'level-3': false
   });
 
-  // State untuk mengontrol Unit mana saja yang terbuka (Dropdown Unit)
   const [openUnits, setOpenUnits] = useState({
-    'l1-u1': true // Unit 1 di Level 1 terbuka secara default
+    'l1-u1': true
   });
 
   const toggleLevel = (levelId) => {
-    setOpenLevels(prev => ({
-      ...prev,
-      [levelId]: !prev[levelId]
-    }));
+    setOpenLevels(prev => ({ ...prev, [levelId]: !prev[levelId] }));
   };
 
   const toggleUnit = (unitId) => {
-    setOpenUnits(prev => ({
-      ...prev,
-      [unitId]: !prev[unitId]
-    }));
+    setOpenUnits(prev => ({ ...prev, [unitId]: !prev[unitId] }));
   };
+
+  const handleRandomQuestion = () => {
+    const randomIndex = Math.floor(Math.random() * questionBank.length);
+    setCurrentQIndex(randomIndex);
+    setSelectedAnswer(null);
+    setShowDiscussion(false);
+  };
+
+  const activeQuestion = questionBank[currentQIndex];
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
@@ -199,18 +242,33 @@ export default function App() {
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar Navigasi Dropdown */}
+        {/* Sidebar Navigasi & Menu Latihan */}
         <aside className={`
-          fixed md:static inset-y-0 left-0 z-20 w-85 bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 transform
+          fixed md:static inset-y-0 left-0 z-20 w-80 bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 transform
           ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-          pt-16 md:pt-0 w-80 shadow-sm
+          pt-16 md:pt-0 shadow-sm
         `}>
-          <div className="p-4 border-b border-gray-100 bg-emerald-50/50 flex items-center space-x-2">
-            <Layers size={18} className="text-emerald-700" />
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">Kurikulum Berbasis Level</span>
-              <h2 className="text-xs font-semibold text-gray-700">Olimpiade Matematika</h2>
-            </div>
+          {/* Tombol Menu Khusus Latihan Soal */}
+          <div className="p-4 border-b border-gray-100 bg-emerald-50">
+            <button
+              onClick={() => {
+                setIsPracticeMode(true);
+                setMobileMenuOpen(false);
+              }}
+              className={`w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs ${
+                isPracticeMode 
+                  ? 'bg-emerald-700 text-white shadow-md' 
+                  : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
+              }`}
+            >
+              <Shuffle size={16} />
+              <span>⚡ Latihan Soal Campuran (OSN)</span>
+            </button>
+          </div>
+
+          <div className="p-3 border-b border-gray-100 flex items-center space-x-2 bg-gray-50/50">
+            <Layers size={16} className="text-emerald-700" />
+            <span className="text-xs font-bold uppercase tracking-wider text-gray-700">Kurikulum Berbasis Level</span>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
@@ -218,7 +276,6 @@ export default function App() {
               const isLevelOpen = openLevels[level.levelId];
               return (
                 <div key={level.levelId} className="border border-gray-200/70 rounded-xl overflow-hidden bg-white shadow-xs">
-                  {/* Tombol Dropdown Level */}
                   <button
                     onClick={() => toggleLevel(level.levelId)}
                     className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-emerald-50/60 transition-colors text-left"
@@ -230,14 +287,12 @@ export default function App() {
                     {isLevelOpen ? <ChevronDown size={16} className="text-gray-500" /> : <ChevronRight size={16} className="text-gray-500" />}
                   </button>
 
-                  {/* Daftar Unit di dalam Level (Muncul jika Level dibuka) */}
                   {isLevelOpen && (
                     <div className="p-2 space-y-2 bg-white border-t border-gray-100">
                       {level.units.map((unit) => {
                         const isUnitOpen = openUnits[unit.id];
                         return (
                           <div key={unit.id} className="rounded-lg border border-gray-100 bg-gray-50/50 overflow-hidden">
-                            {/* Tombol Dropdown Unit */}
                             <button
                               onClick={() => toggleUnit(unit.id)}
                               className="w-full flex items-center justify-between p-2 text-left hover:bg-gray-100 transition-colors"
@@ -246,16 +301,16 @@ export default function App() {
                               {isUnitOpen ? <ChevronDown size={14} className="text-gray-400 shrink-0" /> : <ChevronRight size={14} className="text-gray-400 shrink-0" />}
                             </button>
 
-                            {/* Daftar Topik di dalam Unit (Muncul jika Unit dibuka) */}
                             {isUnitOpen && (
                               <div className="p-1.5 space-y-1 bg-white border-t border-gray-100">
                                 {unit.topics.map((topic) => {
-                                  const isSelected = selectedTopic.id === topic.id;
+                                  const isSelected = !isPracticeMode && selectedTopic.id === topic.id;
                                   return (
                                     <button
                                       key={topic.id}
                                       onClick={() => {
                                         setSelectedTopic(topic);
+                                        setIsPracticeMode(false);
                                         setMobileMenuOpen(false);
                                         setCompleted(false);
                                       }}
@@ -287,65 +342,152 @@ export default function App() {
         <main className="flex-1 overflow-y-auto p-6 md:p-10 lg:px-16 bg-gray-50">
           <div className="max-w-4xl mx-auto space-y-8">
             
-            {/* Header Modul */}
-            <div className="bg-emerald-50 border border-emerald-200/60 rounded-2xl p-6 md:p-8 shadow-sm">
-              <span className="text-xs font-bold text-emerald-800 uppercase tracking-widest bg-emerald-100 px-3 py-1 rounded-full border border-emerald-200">
-                Modul Pembelajaran Mandiri
-              </span>
-              <h1 className="text-2xl md:text-4xl font-extrabold text-gray-900 mt-3 tracking-tight">
-                {selectedTopic.title}
-              </h1>
-              
-              <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <span>Status Membaca:</span>
-                  <span className="font-semibold text-emerald-700">{completed ? '100% Selesai' : '0%'}</span>
+            {isPracticeMode ? (
+              // TAMPILAN MODE LATIHAN SOAL CAMPURAN
+              <div className="space-y-6">
+                <div className="bg-emerald-700 text-white rounded-2xl p-6 md:p-8 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div>
+                    <span className="bg-emerald-800 text-emerald-100 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full border border-emerald-600">
+                      Bank Soal Campuran OSN
+                    </span>
+                    <h1 className="text-2xl md:text-3xl font-extrabold mt-2">Simulasi & Latihan Acak</h1>
+                    <p className="text-emerald-100 text-sm mt-1">Uji kemampuan analitis Anda dengan soal campuran dari berbagai pilar matematika.</p>
+                  </div>
+                  <button
+                    onClick={handleRandomQuestion}
+                    className="flex items-center space-x-2 bg-white text-emerald-800 px-5 py-3 rounded-xl font-bold text-sm shadow-sm hover:bg-emerald-50 transition-all shrink-0"
+                  >
+                    <Shuffle size={18} />
+                    <span>Soal Acak Berikutnya</span>
+                  </button>
                 </div>
-                
-                <button
-                  onClick={() => setCompleted(!completed)}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm ${
-                    completed 
-                      ? 'bg-emerald-700 text-white' 
-                      : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
-                  }`}
-                >
-                  <CheckCircle size={16} />
-                  <span>{completed ? 'Materi Selesai Dipelajari' : 'Tandai Selesai'}</span>
-                </button>
-              </div>
-            </div>
 
-            {/* Isi Materi Utama */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 space-y-6 bg-white p-6 md:p-8 rounded-2xl border border-gray-200/80 shadow-sm">
-                <h2 className="text-lg font-bold text-gray-900 border-b pb-3">Ringkasan Konsep & Teori</h2>
-                <p className="text-gray-700 leading-relaxed text-sm md:text-base">
-                  {selectedTopic.content}
-                </p>
-                <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl my-4 text-sm text-amber-900">
-                  <strong>Catatan Pelatih:</strong> Pelajari konsep dasar di atas, catat rumus penting ke dalam buku latihan khusus olimpiade Anda, lalu kerjakan contoh soal pembuktian atau hitung cepat setelah sesi ini.
-                </div>
-                <h3 className="text-md font-bold text-gray-900 pt-4">Contoh Soal & Pembahasan</h3>
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm text-gray-700">
-                  <p className="font-semibold text-gray-900 mb-2">Soal Latihan Mandiri #1:</p>
-                  <p>Terapkan sifat-sifat yang telah dipelajari pada modul ini untuk menyelesaikan variasi soal tingkat kabupaten/nasional.</p>
-                </div>
-              </div>
+                {/* Kartu Soal */}
+                <div className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
+                  <div className="flex items-center justify-between border-b pb-4">
+                    <span className="text-xs font-bold px-3 py-1 bg-amber-100 text-amber-800 rounded-full">
+                      Kategori: {activeQuestion.category}
+                    </span>
+                    <span className="text-xs font-semibold text-gray-500">Soal ID #{activeQuestion.id}</span>
+                  </div>
 
-              {/* Sidebar Kanan (On This Page) */}
-              <div className="space-y-4">
-                <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-sm">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Navigasi Halaman</h4>
-                  <ul className="space-y-2 text-xs font-medium text-gray-600">
-                    <li className="text-emerald-700 font-semibold cursor-pointer">01. Ringkasan Konsep Utama</li>
-                    <li className="hover:text-gray-900 cursor-pointer">02. Catatan Pelatih & Rumus</li>
-                    <li className="hover:text-gray-900 cursor-pointer">03. Contoh Soal & Pembahasan</li>
-                    <li className="hover:text-gray-900 cursor-pointer">04. Latihan Mandiri</li>
-                  </ul>
+                  <div className="text-base md:text-lg font-medium text-gray-900 leading-relaxed">
+                    {activeQuestion.question}
+                  </div>
+
+                  {/* Pilihan Ganda */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    {activeQuestion.options.map((opt, idx) => {
+                      const isChosen = selectedAnswer === opt;
+                      const isCorrect = opt === activeQuestion.answer;
+                      let btnStyle = "border-gray-200 bg-white text-gray-700 hover:bg-gray-50";
+
+                      if (selectedAnswer !== null) {
+                        if (isCorrect) {
+                          btnStyle = "border-emerald-500 bg-emerald-50 text-emerald-900 font-bold";
+                        } else if (isChosen && !isCorrect) {
+                          btnStyle = "border-red-400 bg-red-50 text-red-900 font-bold";
+                        }
+                      }
+
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => setSelectedAnswer(opt)}
+                          disabled={selectedAnswer !== null}
+                          className={`p-4 rounded-xl border-2 text-left transition-all text-sm font-medium flex items-center justify-between ${btnStyle}`}
+                        >
+                          <span>{opt}</span>
+                          {selectedAnswer !== null && isCorrect && <CheckCircle size={16} className="text-emerald-600" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Tombol Lihat Pembahasan */}
+                  <div className="pt-4 border-t flex items-center justify-between">
+                    <button
+                      onClick={() => setShowDiscussion(!showDiscussion)}
+                      className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center space-x-1"
+                    >
+                      <HelpCircle size={16} />
+                      <span>{showDiscussion ? 'Sembunyikan Pembahasan' : 'Lihat Pembahasan Lengkap'}</span>
+                    </button>
+
+                    <button
+                      onClick={handleRandomQuestion}
+                      className="px-4 py-2 bg-gray-900 text-white rounded-xl text-xs font-bold hover:bg-gray-800 transition-all"
+                    >
+                      Soal Berikutnya ➔
+                    </button>
+                  </div>
+
+                  {/* Kotak Pembahasan */}
+                  {showDiscussion && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 text-sm text-emerald-900 space-y-2 animate-fadeIn">
+                      <p className="font-bold flex items-center space-x-1">
+                        <span>💡 Pembahasan Resmi:</span>
+                      </p>
+                      <p className="leading-relaxed">{activeQuestion.discussion}</p>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
+            ) : (
+              // TAMPILAN MODUL MATERI STANDAR
+              <div className="space-y-8">
+                <div className="bg-emerald-50 border border-emerald-200/60 rounded-2xl p-6 md:p-8 shadow-sm">
+                  <span className="text-xs font-bold text-emerald-800 uppercase tracking-widest bg-emerald-100 px-3 py-1 rounded-full border border-emerald-200">
+                    Modul Pembelajaran Mandiri
+                  </span>
+                  <h1 className="text-2xl md:text-4xl font-extrabold text-gray-900 mt-3 tracking-tight">
+                    {selectedTopic.title}
+                  </h1>
+                  
+                  <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center space-x-2 text-sm text-gray-600">
+                      <span>Status Membaca:</span>
+                      <span className="font-semibold text-emerald-700">{completed ? '100% Selesai' : '0%'}</span>
+                    </div>
+                    
+                    <button
+                      onClick={() => setCompleted(!completed)}
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm ${
+                        completed 
+                          ? 'bg-emerald-700 text-white' 
+                          : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
+                      }`}
+                    >
+                      <CheckCircle size={16} />
+                      <span>{completed ? 'Materi Selesai Dipelajari' : 'Tandai Selesai'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  <div className="lg:col-span-2 space-y-6 bg-white p-6 md:p-8 rounded-2xl border border-gray-200/80 shadow-sm">
+                    <h2 className="text-lg font-bold text-gray-900 border-b pb-3">Ringkasan Konsep & Teori</h2>
+                    <p className="text-gray-700 leading-relaxed text-sm md:text-base">
+                      {selectedTopic.content}
+                    </p>
+                    <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl my-4 text-sm text-amber-900">
+                      <strong>Catatan Pelatih:</strong> Pelajari konsep dasar di atas, catat rumus penting ke dalam buku latihan khusus olimpiade Anda, lalu uji kemampuan Anda dengan menu Latihan Soal Campuran di sidebar!
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-sm">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Navigasi Halaman</h4>
+                      <ul className="space-y-2 text-xs font-medium text-gray-600">
+                        <li className="text-emerald-700 font-semibold cursor-pointer">01. Ringkasan Konsep Utama</li>
+                        <li className="hover:text-gray-900 cursor-pointer">02. Catatan Pelatih & Rumus</li>
+                        <li className="hover:text-gray-900 cursor-pointer">03. Contoh Soal & Pembahasan</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
           </div>
         </main>
