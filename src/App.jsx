@@ -20,6 +20,7 @@ import {
   Lock,
   Save,
   Download,
+  Upload,
   PlusCircle
 } from 'lucide-react';
 
@@ -89,26 +90,6 @@ const defaultCurriculumData = [
                   '$$\\frac{1}{n(n+1)} = \\frac{1}{n} - \\frac{1}{n+1}$$',
                   '$$\\frac{1}{n(n+k)} = \\frac{1}{k}\\left(\\frac{1}{n} - \\frac{1}{n+k}\\right)$$'
                 ]
-              },
-              {
-                heading: '3. Sifat-Sifat Bilangan Berpangkat (Eksponen)',
-                paragraphs: [
-                  'Untuk bilangan real $a, b \\neq 0$ serta bilangan bulat $m, n$, berlaku aturan dasar eksponen berikut. Untuk membandingkan dua bilangan berpangkat besar, samakan bilangan pokok (basis) atau samakan pangkatnya menggunakan FPB.'
-                ],
-                formulas: [
-                  '$$a^m \\times a^n = a^{m+n}, \\qquad \\frac{a^m}{a^n} = a^{m-n}, \\qquad (a^m)^n = a^{m \\times n}$$',
-                  '$$(a \\times b)^n = a^n \\times b^n, \\qquad a^0 = 1, \\qquad a^{-n} = \\frac{1}{a^n}$$'
-                ]
-              },
-              {
-                heading: '4. Bentuk Akar, Merasionalkan Penyebut, & Akar Bersarang',
-                paragraphs: [
-                  'Bentuk akar disederhanakan dengan memfaktorkan bilangan di dalam akar menjadi perkalian bilangan kuadrat sempurna. Untuk merasionalkan penyebut bentuk sekawan maupun menyederhanakan akar ganda, gunakan sifat berikut (dengan syarat $a > b > 0$):'
-                ],
-                formulas: [
-                  '$$\\frac{c}{\\sqrt{a} \\pm \\sqrt{b}} = \\frac{c(\\sqrt{a} \\mp \\sqrt{b})}{a - b}$$',
-                  '$$\\sqrt{(a + b) + 2\\sqrt{ab}} = \\sqrt{a} + \\sqrt{b}, \\qquad \\sqrt{(a + b) - 2\\sqrt{ab}} = \\sqrt{a} - \\sqrt{b}$$'
-                ]
               }
             ],
             examples: [
@@ -117,13 +98,7 @@ const defaultCurriculumData = [
                 problem:
                   'Hitunglah nilai dari $\\frac{1}{1 \\times 2} + \\frac{1}{2 \\times 3} + \\frac{1}{3 \\times 4} + \\dots + \\frac{1}{99 \\times 100}$.',
                 solution:
-                  'Gunakan identitas pecahan teleskopik $\\frac{1}{n(n+1)} = \\frac{1}{n} - \\frac{1}{n+1}$ pada setiap suku:\n$$\\left(1 - \\frac{1}{2}\\right) + \\left(\\frac{1}{2} - \\frac{1}{3}\\right) + \\left(\\frac{1}{3} - \\frac{1}{4}\\right) + \\dots + \\left(\\frac{1}{99} - \\frac{1}{100}\\right)$$\nSemua suku di bagian tengah saling meniadakan, menyisakan suku awal dan suku akhir:\n$$1 - \\frac{1}{100} = \\frac{99}{100}$$'
-              },
-              {
-                number: 2,
-                problem: 'Sederhanakan bentuk akar berikut: $\\sqrt{7 + 2\\sqrt{12}} - \\sqrt{7 - 2\\sqrt{12}}$.',
-                solution:
-                  'Cari dua bilangan yang jika dijumlahkan hasilnya $7$ dan jika dikalikan hasilnya $12$. Bilangan tersebut adalah $4$ dan $3$ (karena $4 + 3 = 7$ dan $4 \\times 3 = 12$).\nMaka:\n$$\\sqrt{7 + 2\\sqrt{12}} = \\sqrt{4} + \\sqrt{3} = 2 + \\sqrt{3}$$\n$$\\sqrt{7 - 2\\sqrt{12}} = \\sqrt{4} - \\sqrt{3} = 2 - \\sqrt{3}$$\nSehingga selisihnya adalah $(2 + \\sqrt{3}) - (2 - \\sqrt{3}) = 2\\sqrt{3}$.'
+                  'Gunakan identitas pecahan teleskopik $\\frac{1}{n(n+1)} = \\frac{1}{n} - \\frac{1}{n+1}$ pada setiap suku:\n$$1 - \\frac{1}{100} = \\frac{99}{100}$$'
               }
             ],
             exercises: [
@@ -134,184 +109,8 @@ const defaultCurriculumData = [
                 answer: '4051',
                 discussion:
                   'Gunakan sifat $a^2 - b^2 = (a - b)(a + b) = (2026 - 2025)(2026 + 2025) = 1 \\times 4051 = 4051$.'
-              },
-              {
-                id: 2,
-                question:
-                  'Nilai dari $\\frac{1}{2 \\times 3} + \\frac{1}{3 \\times 4} + \\frac{1}{4 \\times 5} + \\dots + \\frac{1}{19 \\times 20}$ adalah...',
-                options: ['$\\frac{9}{20}$', '$\\frac{19}{20}$', '$\\frac{1}{10}$', '$\\frac{11}{20}$'],
-                answer: '$\\frac{9}{20}$',
-                discussion:
-                  'Dengan deret teleskopik: $\\left(\\frac{1}{2} - \\frac{1}{3}\\right) + \\left(\\frac{1}{3} - \\frac{1}{4}\\right) + \\dots + \\left(\\frac{1}{19} - \\frac{1}{20}\\right) = \\frac{1}{2} - \\frac{1}{20} = \\frac{10 - 1}{20} = \\frac{9}{20}$.'
-              },
-              {
-                id: 3,
-                question: 'Bentuk sederhana dari $\\sqrt{11 + 2\\sqrt{30}}$ adalah...',
-                options: ['$\\sqrt{6} + \\sqrt{5}$', '$\\sqrt{10} + 1$', '$3 + \\sqrt{2}$', '$\\sqrt{15} + \\sqrt{2}$'],
-                answer: '$\\sqrt{6} + \\sqrt{5}$',
-                discussion:
-                  'Karena $6 + 5 = 11$ dan $6 \\times 5 = 30$, maka $\\sqrt{(6 + 5) + 2\\sqrt{6 \\times 5}} = \\sqrt{6} + \\sqrt{5}$.'
               }
             ]
-          },
-          {
-            id: 't2',
-            title: 'Perbandingan Senilai dan Berbalik Nilai',
-            coachNote:
-              'Pada soal pekerjaan bersama, jangan jumlahkan waktu pengerjaannya, melainkan jumlahkan kecepatan (laju) kerja per satuan waktu.',
-            sections: [
-              {
-                heading: '1. Perbandingan Senilai (Direct Proportion)',
-                paragraphs: [
-                  'Dua besaran dikatakan berbanding senilai jika kenaikan satu besaran menyebabkan kenaikan besaran lainnya dengan rasio tetap ($\\frac{x_1}{y_1} = \\frac{x_2}{y_2}$).'
-                ],
-                formulas: ['$$\\frac{x_1}{x_2} = \\frac{y_1}{y_2} \\quad \\text{atau} \\quad y = k \\cdot x$$']
-              },
-              {
-                heading: '2. Perbandingan Berbalik Nilai & Pekerjaan Bersama',
-                paragraphs: [
-                  'Dua besaran berbanding berbalik nilai jika kenaikan satu besaran menyebabkan penurunan besaran lainnya ($x_1 \\cdot y_1 = x_2 \\cdot y_2$).'
-                ],
-                formulas: [
-                  '$$x_1 \\times y_1 = x_2 \\times y_2$$',
-                  '$$\\frac{1}{t_{\\text{gab}}} = \\frac{1}{t_A} + \\frac{1}{t_B}$$'
-                ]
-              }
-            ],
-            examples: [
-              {
-                number: 1,
-                problem:
-                  'Keran A dapat mengisi penuh sebuah bak dalam waktu $3$ jam, sedangkan keran B dapat mengisinya dalam waktu $6$ jam. Jika kedua keran dibuka bersamaan, berapa jam waktu yang dibutuhkan hingga bak penuh?',
-                solution:
-                  'Gunakan rumus laju gabungan:\n$$\\frac{1}{t_{\\text{gab}}} = \\frac{1}{3} + \\frac{1}{6} = \\frac{2 + 1}{6} = \\frac{3}{6} = \\frac{1}{2}$$\nMaka $t_{\\text{gab}} = 2$ jam.'
-              }
-            ],
-            exercises: []
-          }
-        ]
-      },
-      {
-        id: 'l1-u2',
-        title: 'Unit 2: Himpunan & Basis Bilangan',
-        topics: [
-          {
-            id: 't3',
-            title: 'Pengertian, Notasi, dan Operasi Himpunan',
-            coachNote: 'Gunakan diagram Venn untuk memvisualisasikan irisan tiga himpunan.',
-            sections: [
-              {
-                heading: '1. Prinsip Inklusi-Eksklusi Dua Himpunan',
-                paragraphs: [
-                  'Irisan ($A \\cap B$), gabungan ($A \\cup B$), komplemen, dan selisih himpunan memenuhi hubungan kardinalitas berikut:'
-                ],
-                formulas: ['$$|A \\cup B| = |A| + |B| - |A \\cap B|$$']
-              }
-            ],
-            examples: [],
-            exercises: []
-          },
-          {
-            id: 't4',
-            title: 'Pengantar Basis Bilangan Sederhana',
-            coachNote: 'Perhatikan bahwa setiap digit pada basis $b$ harus bernilai kurang dari $b$.',
-            sections: [
-              {
-                heading: '1. Konversi Basis Bilangan ke Basis 10',
-                paragraphs: [
-                  'Mengenal sistem bilangan berbasis selain $10$ (basis $2$, basis $5$, dll). Contoh: $23_4 = 2 \\times 4^1 + 3 \\times 4^0 = 11_{10}$.'
-                ],
-                formulas: ['$$(a_n a_{n-1} \\dots a_0)_b = a_n b^n + a_{n-1} b^{n-1} + \\dots + a_0 b^0$$']
-              }
-            ],
-            examples: [],
-            exercises: []
-          }
-        ]
-      },
-      {
-        id: 'l1-u3',
-        title: 'Unit 3: Aljabar & Operasi Dasar',
-        topics: [
-          {
-            id: 't5',
-            title: 'Operasi Aljabar, Akar, & Pangkat',
-            coachNote: 'Kenali bentuk pemfaktoran simetris.',
-            sections: [],
-            examples: [],
-            exercises: []
-          },
-          {
-            id: 't6',
-            title: 'Persamaan & Pertidaksamaan Linear 1/2 Peubah',
-            coachNote: 'Hati-hati saat mengalikan atau membagi pertidaksamaan dengan bilangan negatif.',
-            sections: [],
-            examples: [],
-            exercises: []
-          }
-        ]
-      },
-      {
-        id: 'l1-u4',
-        title: 'Unit 4: Pola Bilangan & Barisan Awal',
-        topics: [
-          {
-            id: 't7',
-            title: 'Pola Bilangan, Barisan, & Deret Sederhana',
-            coachNote: 'Cek selisih tingkat pertama dan tingkat kedua.',
-            sections: [
-              {
-                heading: '1. Barisan Aritmetika Dasar',
-                paragraphs: ['Suku ke-$n$ barisan aritmetika dengan suku awal $a$ dan beda $b$:'],
-                formulas: ['$$U_n = a + (n-1)b$$']
-              }
-            ],
-            examples: [],
-            exercises: []
-          }
-        ]
-      },
-      {
-        id: 'l1-u5',
-        title: 'Unit 5: Garis, Sudut, & Bangun Datar',
-        topics: [
-          {
-            id: 't8',
-            title: 'Garis dan Sudut',
-            coachNote: 'Buat garis bantu sejajar jika menemui sudut berliku (zig-zag).',
-            sections: [],
-            examples: [],
-            exercises: []
-          },
-          {
-            id: 't9',
-            title: 'Bangun Datar & Koordinat Kartesius',
-            coachNote: 'Manfaatkan perbandingan luas segitiga yang memiliki tinggi sama.',
-            sections: [],
-            examples: [],
-            exercises: []
-          }
-        ]
-      },
-      {
-        id: 'l1-u6',
-        title: 'Unit 6: Teorema Pythagoras & Statistika',
-        topics: [
-          {
-            id: 't10',
-            title: 'Teorema Pythagoras',
-            coachNote: 'Hafalkan tripel Pythagoras dasar: (3,4,5), (5,12,13), (7,24,25), dan (8,15,17).',
-            sections: [],
-            examples: [],
-            exercises: []
-          },
-          {
-            id: 't11',
-            title: 'Analisis Data & Ukuran Pemusatan',
-            coachNote: 'Gunakan konsep jumlah data = rata-rata dikali banyak data.',
-            sections: [],
-            examples: [],
-            exercises: []
           }
         ]
       }
@@ -329,102 +128,14 @@ const defaultCurriculumData = [
           {
             id: 't12',
             title: 'FPB, KPK, & Algoritma Euclidean',
-            coachNote: 'Gunakan sifat FPB(a, b) = FPB(a - b, b) untuk menyederhanakan bentuk aljabar.',
+            coachNote: 'Gunakan sifat FPB dan KPK.',
             sections: [
               {
-                heading: '1. Hubungan FPB dan KPK',
-                paragraphs: ['Untuk dua bilangan bulat positif $a$ dan $b$, berlaku:'],
+                heading: '1. Sifat Dasar FPB dan KPK',
+                paragraphs: ['Hubungan mendasar antara FPB dan KPK dua bilangan.'],
                 formulas: ['$$\\text{FPB}(a,b) \\times \\text{KPK}(a,b) = a \\times b$$']
               }
             ],
-            examples: [],
-            exercises: []
-          },
-          {
-            id: 't13',
-            title: 'Sisa Pembagian & Basis Lanjutan',
-            coachNote: 'Amati pola pengulangan sisa pembagian pada bilangan berpangkat.',
-            sections: [],
-            examples: [],
-            exercises: []
-          }
-        ]
-      },
-      {
-        id: 'l2-u2',
-        title: 'Unit 2: Aljabar Menengah & Fungsi',
-        topics: [
-          {
-            id: 't14',
-            title: 'Persamaan & Pertidaksamaan Kuadrat',
-            coachNote: 'Gunakan Teorema Vieta tanpa harus mencari nilai akar satu per satu.',
-            sections: [],
-            examples: [],
-            exercises: []
-          },
-          {
-            id: 't15',
-            title: 'SPLDV & Pengantar Relasi/Fungsi',
-            coachNote: 'Jumlahkan atau kurangkan kedua persamaan untuk membentuk pola simetris.',
-            sections: [],
-            examples: [],
-            exercises: []
-          }
-        ]
-      },
-      {
-        id: 'l2-u3',
-        title: 'Unit 3: Barisan & Deret Lanjutan',
-        topics: [
-          {
-            id: 't16',
-            title: 'Barisan & Deret Aritmetika/Geometri Kompleks',
-            coachNote: 'Perhatikan syarat konvergensi deret geometri tak hingga ($|r| < 1$).',
-            sections: [],
-            examples: [],
-            exercises: []
-          }
-        ]
-      },
-      {
-        id: 'l2-u4',
-        title: 'Unit 4: Geometri Menengah & Transformasi',
-        topics: [
-          {
-            id: 't17',
-            title: 'Kesebangunan, Kekongruenan, & Jarak',
-            coachNote: 'Rasio luas dua segitiga sebangun sama dengan kuadrat rasio sisinya.',
-            sections: [],
-            examples: [],
-            exercises: []
-          },
-          {
-            id: 't18',
-            title: 'Transformasi Geometri',
-            coachNote: 'Pencerminan mempertahankan jarak dan besar sudut.',
-            sections: [],
-            examples: [],
-            exercises: []
-          }
-        ]
-      },
-      {
-        id: 'l2-u5',
-        title: 'Unit 5: Bangun Ruang & Peluang Dasar',
-        topics: [
-          {
-            id: 't19',
-            title: 'Luas Permukaan & Volume Bangun Ruang',
-            coachNote: 'Gunakan jaring-jaring bangun ruang untuk mencari lintasan terpendek.',
-            sections: [],
-            examples: [],
-            exercises: []
-          },
-          {
-            id: 't20',
-            title: 'Aturan Pencacahan & Peluang Dasar',
-            coachNote: 'Bedakan kapan urutan diperhatikan (Permutasi) dan kapan diabaikan (Kombinasi).',
-            sections: [],
             examples: [],
             exercises: []
           }
@@ -444,56 +155,14 @@ const defaultCurriculumData = [
           {
             id: 't21',
             title: 'Aritmetika Modulo & Kongruensi',
-            coachNote: 'Manfaatkan Teorema Fermat Kecil untuk menyederhanakan pangkat besar.',
+            coachNote: 'Kuasai sifat modulo.',
             sections: [
               {
-                heading: '1. Definisi Kongruensi Modulo',
-                paragraphs: ['$a \\equiv b \\pmod{m}$ berarti $m$ membagi habis $(a - b)$.'],
-                formulas: ['$$a \\equiv b \\pmod{m} \\iff m \\mid (a - b)$$']
+                heading: '1. Pengantar Kongruensi Modulo',
+                paragraphs: ['Definisi dasar aritmetika modulo.'],
+                formulas: ['$$a \\equiv b \\pmod{m}$$']
               }
             ],
-            examples: [],
-            exercises: []
-          }
-        ]
-      },
-      {
-        id: 'l3-u2',
-        title: 'Unit 2: Aljabar Lanjutan & Polinomial',
-        topics: [
-          {
-            id: 't22',
-            title: 'Operasi Fungsi Suku Banyak & Rasional',
-            coachNote: 'Gunakan Teorema Sisa dan Teorema Faktor dengan substitusi akar pembuat nol.',
-            sections: [],
-            examples: [],
-            exercises: []
-          }
-        ]
-      },
-      {
-        id: 'l3-u3',
-        title: 'Unit 3: Geometri Lanjutan',
-        topics: [
-          {
-            id: 't23',
-            title: 'Garis Istimewa & Dalil Segitiga',
-            coachNote: 'Kenali konfigurasi dalil Menelaus dan Ceva pada segitiga.',
-            sections: [],
-            examples: [],
-            exercises: []
-          }
-        ]
-      },
-      {
-        id: 'l3-u4',
-        title: 'Unit 4: Kombinatorika Kompleks',
-        topics: [
-          {
-            id: 't24',
-            title: 'Permutasi, Kombinasi, & Pigeonhole',
-            coachNote: 'Tentukan mana yang menjadi "merpati" dan mana yang menjadi "sarang".',
-            sections: [],
             examples: [],
             exercises: []
           }
@@ -521,25 +190,6 @@ const defaultQuestionBank = [
     answer: '18',
     discussion:
       'Gunakan penjabaran kubus: $\\left(x + \\frac{1}{x}\\right)^3 = x^3 + \\frac{1}{x^3} + 3\\left(x + \\frac{1}{x}\\right)$. Substitusi nilai $3$: $27 = x^3 + \\frac{1}{x^3} + 9 \\implies x^3 + \\frac{1}{x^3} = 18$.'
-  },
-  {
-    id: 3,
-    category: 'Geometri',
-    question:
-      'Sebuah segitiga siku-siku memiliki panjang sisi siku-siku $6\\text{ cm}$ dan $8\\text{ cm}$. Berapakah panjang garis berat yang ditarik dari sudut siku-siku ke sisi miring?',
-    options: ['$5\\text{ cm}$', '$6\\text{ cm}$', '$10\\text{ cm}$', '$4,8\\text{ cm}$'],
-    answer: '$5\\text{ cm}$',
-    discussion:
-      'Sisi miring (hipotenusa) $= \\sqrt{6^2 + 8^2} = 10\\text{ cm}$. Pada segitiga siku-siku, panjang garis berat ke sisi miring selalu setengah dari panjang sisi miring tersebut, yaitu $10 / 2 = 5\\text{ cm}$.'
-  },
-  {
-    id: 4,
-    category: 'Kombinatorika',
-    question: 'Banyaknya cara menyusun huruf pada kata "MATEMATIKA" adalah...',
-    options: ['151.200', '302.400', '45.360', '90.720'],
-    answer: '151.200',
-    discussion:
-      'Total huruf $= 10$, dengan unsur ganda: $\\text{M}=2, \\text{A}=3, \\text{T}=2$. Banyak susunan $= \\frac{10!}{2! \\times 3! \\times 2!} = \\frac{3.628.800}{2 \\times 6 \\times 2} = 151.200$.'
   }
 ];
 
@@ -569,7 +219,6 @@ export default function App() {
     return defaultQuestionBank;
   });
 
-  // Gunakan ID topik aktif agar selalu sinkron dengan pembaruan curriculumData
   const [selectedTopicId, setSelectedTopicId] = useState('t1');
   const selectedTopic =
     curriculumData
@@ -614,7 +263,7 @@ export default function App() {
 
   // State Form Input & Edit di Mode Editor
   const [editorTarget, setEditorTarget] = useState('exercise'); // 'exercise' | 'example' | 'section' | 'mixed'
-  const [editingIndex, setEditingIndex] = useState(null); // null = Mode Tambah Baru, angka = Index item yang diedit
+  const [editingIndex, setEditingIndex] = useState(null);
   const [confirmDeleteIdx, setConfirmDeleteIdx] = useState(null);
 
   const [edCategory, setEdCategory] = useState('Aljabar');
@@ -631,6 +280,7 @@ export default function App() {
   const [saveNotification, setSaveNotification] = useState('');
   const questionInputRef = useRef(null);
   const editorFormTopRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // State Latihan Soal Campuran
   const [currentQIndex, setCurrentQIndex] = useState(0);
@@ -757,7 +407,6 @@ export default function App() {
     });
   };
 
-  // MEMUAT ITEM KE FORM UNTUK DIEDIT
   const handleStartEditItem = (index, item) => {
     setEditingIndex(index);
     setConfirmDeleteIdx(null);
@@ -786,7 +435,6 @@ export default function App() {
     }
   };
 
-  // HAPUS ITEM DARI PENYIMPANAN
   const handleDeleteItem = (index) => {
     if (editorTarget === 'mixed') {
       const updatedBank = questionBank
@@ -835,7 +483,6 @@ export default function App() {
     }
   };
 
-  // SIMPAN BARU ATAU SIMPAN PERUBAHAN (UPDATE)
   const handleSaveOrUpdate = () => {
     const isUpdating = editingIndex !== null;
 
@@ -877,7 +524,6 @@ export default function App() {
       return;
     }
 
-    // Validasi sederhana untuk target topik
     if (editorTarget === 'section' && !edHeading.trim() && !edParagraph.trim()) {
       showToast('⚠️ Judul atau paragraf materi tidak boleh kosong.');
       return;
@@ -982,6 +628,32 @@ export default function App() {
     downloadAnchor.remove();
   };
 
+  // FUNGSI RESTORE / IMPORT JSON
+  const handleImportJSON = (e) => {
+    const fileReader = new FileReader();
+    if (e.target.files && e.target.files[0]) {
+      fileReader.readAsText(e.target.files[0], 'UTF-8');
+      fileReader.onload = (event) => {
+        try {
+          const parsedData = JSON.parse(event.target.result);
+          if (parsedData.curriculumData) {
+            setCurriculumData(parsedData.curriculumData);
+            localStorage.setItem('jagomatika_curriculum', JSON.stringify(parsedData.curriculumData));
+          }
+          if (parsedData.questionBank) {
+            setQuestionBank(parsedData.questionBank);
+            localStorage.setItem('jagomatika_questionbank', JSON.stringify(parsedData.questionBank));
+          }
+          showToast('✅ Data berhasil dipulihkan (Restore) dari file JSON!');
+        } catch (error) {
+          alert('Format file JSON tidak valid!');
+        }
+        // Reset input file agar bisa pilih file yang sama lagi jika perlu
+        e.target.value = null;
+      };
+    }
+  };
+
   const toggleLevel = (levelId) => {
     setOpenLevels((prev) => ({ ...prev, [levelId]: !prev[levelId] }));
   };
@@ -1006,7 +678,6 @@ export default function App() {
     setTopicDiscussions((prev) => ({ ...prev, [qId]: !prev[qId] }));
   };
 
-  // Ambil daftar item tersimpan sesuai target yang dipilih
   const savedItemsList =
     editorTarget === 'mixed'
       ? questionBank
@@ -1273,12 +944,20 @@ export default function App() {
         <main className="flex-1 overflow-y-auto p-6 md:p-10 lg:px-14 bg-gray-50 scroll-smooth">
           <div className="max-w-5xl mx-auto space-y-8">
             {isEditorMode ? (
-              // TAMPILAN MODE EDITOR (TAMBAH, EDIT, & HAPUS)
+              // TAMPILAN MODE EDITOR
               <div ref={editorFormTopRef} className="space-y-6">
+                <input
+                  type="file"
+                  accept=".json"
+                  ref={fileInputRef}
+                  onChange={handleImportJSON}
+                  style={{ display: 'none' }}
+                />
+
                 <div className="bg-slate-900 text-white rounded-2xl p-6 md:p-8 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div className="space-y-2 flex-1">
                     <span className="bg-emerald-500/20 text-emerald-300 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full border border-emerald-400/30">
-                      CMS Mode Editor (Tambah • Edit • Hapus)
+                      CMS Mode Editor (Backup & Restore)
                     </span>
                     <h1 className="text-2xl md:text-3xl font-extrabold">Kelola Materi & Soal Olimpiade</h1>
                     {editorTarget !== 'mixed' && (
@@ -1308,6 +987,14 @@ export default function App() {
                     )}
                   </div>
                   <div className="flex items-center space-x-3 shrink-0">
+                    <button
+                      onClick={() => fileInputRef.current.click()}
+                      className="flex items-center space-x-1.5 bg-emerald-800 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold border border-emerald-600 transition-all shadow-xs"
+                      title="Pulihkan data dari file JSON cadangan"
+                    >
+                      <Upload size={15} />
+                      <span>Import / Restore JSON</span>
+                    </button>
                     <button
                       onClick={handleExportData}
                       className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold border border-slate-700 transition-all"
@@ -1597,7 +1284,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* DAFTAR ITEM TERSIMPAN (EDIT & HAPUS) */}
+                {/* DAFTAR ITEM TERSIMPAN */}
                 <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
                     <div>
