@@ -45,10 +45,17 @@ import {
 const EDITOR_PASSWORD = 'punyawebolim';
 
 // Inisialisasi Koneksi Supabase dari .env / Vercel Environment Variables
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
-const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseAnonKey) : null;
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+const isSupabaseConfigured = /^https?:\/\/.+/.test(supabaseUrl) && Boolean(supabaseAnonKey);
+let supabase = null;
+if (isSupabaseConfigured) {
+  try {
+    supabase = createClient(supabaseUrl, supabaseAnonKey);
+  } catch (e) {
+    console.error('Supabase init error:', e);
+  }
+}
 
 // Komponen helper untuk merender tulisan & rumus LaTeX ($...$ dan $$...$$) secara real-time
 function MathText({ text = '', className = '' }) {
