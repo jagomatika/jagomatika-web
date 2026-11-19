@@ -3510,7 +3510,7 @@ export default function App() {
                   </div>
 
                   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-1">
-                    <span className="text-xs font-bold uppercase text-gray-500">Dijawab Salah</span>
+                    <span className="text-xs font-bold uppercase text-gray-500">Salah / Lihat Kunci Langsung</span>
                     <p className="text-2xl md:text-3xl font-extrabold text-red-600">
                       {studentAnalytics.firstWrongQuestions.length}
                     </p>
