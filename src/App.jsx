@@ -420,9 +420,10 @@ export default function App() {
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [showDiscussion, setShowDiscussion] = useState(false);
 
-  // State Latihan Mandiri di Topik
+  // State Latihan Mandiri & Contoh Soal di Topik
   const [topicAnswers, setTopicAnswers] = useState({});
   const [topicDiscussions, setTopicDiscussions] = useState({});
+  const [exampleSolutions, setExampleSolutions] = useState({});
 
   const [openLevels, setOpenLevels] = useState(() => {
     const firstLevelId = defaultCurriculumData[0]?.levelId;
@@ -438,6 +439,11 @@ export default function App() {
     setSaveNotification(msg);
     setTimeout(() => setSaveNotification(''), 3500);
   };
+
+  // Reset pembahasan contoh soal saat berpindah topik
+  useEffect(() => {
+    setExampleSolutions({});
+  }, [selectedTopicId]);
 
   // Load KaTeX
   useEffect(() => {
@@ -597,10 +603,12 @@ export default function App() {
 
     const {
       data: { subscription }
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         setAuthUser(session.user);
-        loadStudentProgressFromCloud(session.user);
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+          loadStudentProgressFromCloud(session.user);
+        }
       } else {
         setAuthUser(null);
       }
@@ -638,9 +646,7 @@ export default function App() {
   // ==========================================
   // SINKRONISASI PROGRES SISWA KE CLOUD / LOKAL
   // ==========================================
-  const persistStudentProgress = async (updatedProgress, userOverride = authUser) => {
-    setCurrentStudentData(updatedProgress);
-
+  const syncStudentProgressToStorage = async (updatedProgress, userOverride = authUser) => {
     if (supabase && userOverride) {
       setIsSyncing(true);
       try {
@@ -680,7 +686,7 @@ export default function App() {
           visitedTopics: Array.from(visited),
           lastActive: new Date().toISOString()
         };
-        persistStudentProgress(nextData);
+        syncStudentProgressToStorage(nextData);
         return nextData;
       });
     }
@@ -852,6 +858,7 @@ export default function App() {
     setCurrentStudentData(createEmptyProgress('Siswa Tamu'));
     setTopicAnswers({});
     setTopicDiscussions({});
+    setExampleSolutions({});
     setSelectedAnswer(null);
     setShowDiscussion(false);
     showToast('Anda telah keluar dari akun siswa.');
@@ -879,66 +886,142 @@ export default function App() {
   const isTopicCompleted = (currentStudentData.completedTopics || []).includes(selectedTopic.id);
 
   const handleToggleTopicCompleted = () => {
-    const set = new Set(currentStudentData.completedTopics || []);
-    if (set.has(selectedTopic.id)) {
-      set.delete(selectedTopic.id);
-    } else {
-      set.add(selectedTopic.id);
-    }
-    const nextData = {
-      ...currentStudentData,
-      completedTopics: Array.from(set),
-      lastActive: new Date().toISOString()
-    };
-    persistStudentProgress(nextData);
+    setCurrentStudentData((prev) => {
+      const set = new Set(prev.completedTopics || []);
+      if (set.has(selectedTopic.id)) {
+        set.delete(selectedTopic.id);
+      } else {
+        set.add(selectedTopic.id);
+      }
+      const nextData = {
+        ...prev,
+        completedTopics: Array.from(set),
+        lastActive: new Date().toISOString()
+      };
+      syncStudentProgressToStorage(nextData);
+      return nextData;
+    });
+  };
+
+  const markDiscussionViewed = (scope, containerId, qId) => {
+    if (qId === undefined || qId === null) return;
+
+    setCurrentStudentData((prev) => {
+      if (scope === 'topic') {
+        const topicMap = { ...(prev.topicAttempts?.[containerId] || {}) };
+        const prevAttempt = topicMap[qId];
+        if (prevAttempt?.viewedDiscussion) return prev;
+
+        topicMap[qId] = {
+          ...(prevAttempt || {}),
+          viewedDiscussion: true,
+          isFirstCorrect: prevAttempt?.isFirstCorrect === true ? true : false
+        };
+
+        const nextData = {
+          ...prev,
+          lastActive: new Date().toISOString(),
+          topicAttempts: {
+            ...(prev.topicAttempts || {}),
+            [containerId]: topicMap
+          }
+        };
+        syncStudentProgressToStorage(nextData);
+        return nextData;
+      }
+
+      if (scope === 'mixed') {
+        const mixedMap = { ...(prev.mixedAttempts || {}) };
+        const prevAttempt = mixedMap[qId];
+        if (prevAttempt?.viewedDiscussion) return prev;
+
+        mixedMap[qId] = {
+          ...(prevAttempt || {}),
+          viewedDiscussion: true,
+          isFirstCorrect: prevAttempt?.isFirstCorrect === true ? true : false
+        };
+
+        const nextData = {
+          ...prev,
+          lastActive: new Date().toISOString(),
+          mixedAttempts: mixedMap
+        };
+        syncStudentProgressToStorage(nextData);
+        return nextData;
+      }
+
+      return prev;
+    });
   };
 
   const handleSelectTopicAnswer = (qObj, option) => {
     setTopicAnswers((prev) => ({ ...prev, [qObj.id]: option }));
     const isCorrect = option === qObj.answer;
+    const isDiscCurrentlyOpen = Boolean(topicDiscussions[qObj.id]);
 
-    const topicMap = { ...(currentStudentData.topicAttempts?.[selectedTopic.id] || {}) };
-    const prevAttempt = topicMap[qObj.id];
+    setCurrentStudentData((prev) => {
+      const topicMap = { ...(prev.topicAttempts?.[selectedTopic.id] || {}) };
+      const prevAttempt = topicMap[qObj.id];
+      const hasViewedDiscussion = Boolean(prevAttempt?.viewedDiscussion || isDiscCurrentlyOpen);
 
-    topicMap[qObj.id] = {
-      firstAnswer: prevAttempt ? prevAttempt.firstAnswer : option,
-      isFirstCorrect: prevAttempt ? prevAttempt.isFirstCorrect : isCorrect,
-      latestAnswer: option,
-      isLatestCorrect: isCorrect
-    };
+      const nextIsFirstCorrect =
+        prevAttempt && typeof prevAttempt.isFirstCorrect === 'boolean'
+          ? prevAttempt.isFirstCorrect && !hasViewedDiscussion
+          : !hasViewedDiscussion && isCorrect;
 
-    const nextData = {
-      ...currentStudentData,
-      lastActive: new Date().toISOString(),
-      topicAttempts: {
-        ...(currentStudentData.topicAttempts || {}),
-        [selectedTopic.id]: topicMap
-      }
-    };
-    persistStudentProgress(nextData);
+      topicMap[qObj.id] = {
+        firstAnswer: prevAttempt?.firstAnswer ?? option,
+        isFirstCorrect: nextIsFirstCorrect,
+        viewedDiscussion: hasViewedDiscussion,
+        latestAnswer: option,
+        isLatestCorrect: isCorrect
+      };
+
+      const nextData = {
+        ...prev,
+        lastActive: new Date().toISOString(),
+        topicAttempts: {
+          ...(prev.topicAttempts || {}),
+          [selectedTopic.id]: topicMap
+        }
+      };
+      syncStudentProgressToStorage(nextData);
+      return nextData;
+    });
   };
 
   const handleSelectMixedAnswer = (qObj, option) => {
     setSelectedAnswer(option);
     if (!qObj) return;
     const isCorrect = option === qObj.answer;
+    const isDiscCurrentlyOpen = Boolean(showDiscussion);
 
-    const mixedMap = { ...(currentStudentData.mixedAttempts || {}) };
-    const prevAttempt = mixedMap[qObj.id];
+    setCurrentStudentData((prev) => {
+      const mixedMap = { ...(prev.mixedAttempts || {}) };
+      const prevAttempt = mixedMap[qObj.id];
+      const hasViewedDiscussion = Boolean(prevAttempt?.viewedDiscussion || isDiscCurrentlyOpen);
 
-    mixedMap[qObj.id] = {
-      firstAnswer: prevAttempt ? prevAttempt.firstAnswer : option,
-      isFirstCorrect: prevAttempt ? prevAttempt.isFirstCorrect : isCorrect,
-      latestAnswer: option,
-      isLatestCorrect: isCorrect
-    };
+      const nextIsFirstCorrect =
+        prevAttempt && typeof prevAttempt.isFirstCorrect === 'boolean'
+          ? prevAttempt.isFirstCorrect && !hasViewedDiscussion
+          : !hasViewedDiscussion && isCorrect;
 
-    const nextData = {
-      ...currentStudentData,
-      lastActive: new Date().toISOString(),
-      mixedAttempts: mixedMap
-    };
-    persistStudentProgress(nextData);
+      mixedMap[qObj.id] = {
+        firstAnswer: prevAttempt?.firstAnswer ?? option,
+        isFirstCorrect: nextIsFirstCorrect,
+        viewedDiscussion: hasViewedDiscussion,
+        latestAnswer: option,
+        isLatestCorrect: isCorrect
+      };
+
+      const nextData = {
+        ...prev,
+        lastActive: new Date().toISOString(),
+        mixedAttempts: mixedMap
+      };
+      syncStudentProgressToStorage(nextData);
+      return nextData;
+    });
   };
 
   // ==========================================
@@ -974,7 +1057,7 @@ export default function App() {
                 firstWrongQuestions.push({
                   topicTitle: top.title,
                   question: q.question,
-                  studentAnswer: att.firstAnswer,
+                  studentAnswer: att.firstAnswer || '(Membuka kunci jawaban terlebih dahulu)',
                   correctAnswer: q.answer
                 });
               }
@@ -1009,7 +1092,7 @@ export default function App() {
         const entry = {
           topicTitle: `Bank Soal Campuran (${qObj.category})`,
           question: qObj.question,
-          studentAnswer: att.firstAnswer,
+          studentAnswer: att.firstAnswer || '(Membuka kunci jawaban terlebih dahulu)',
           correctAnswer: qObj.answer
         };
         if (att.isFirstCorrect) firstCorrectQuestions.push(entry);
@@ -1724,7 +1807,23 @@ export default function App() {
   };
 
   const toggleTopicDiscussion = (qId) => {
-    setTopicDiscussions((prev) => ({ ...prev, [qId]: !prev[qId] }));
+    const nextOpen = !topicDiscussions[qId];
+    setTopicDiscussions((prev) => ({ ...prev, [qId]: nextOpen }));
+    if (nextOpen) {
+      markDiscussionViewed('topic', selectedTopic.id, qId);
+    }
+  };
+
+  const handleToggleMixedDiscussion = () => {
+    const nextOpen = !showDiscussion;
+    setShowDiscussion(nextOpen);
+    if (nextOpen && activeQuestion?.id) {
+      markDiscussionViewed('mixed', 'mixed', activeQuestion.id);
+    }
+  };
+
+  const toggleExampleSolution = (exKey) => {
+    setExampleSolutions((prev) => ({ ...prev, [exKey]: !prev[exKey] }));
   };
 
   const savedItemsList =
@@ -2224,6 +2323,7 @@ export default function App() {
                                         setMobileMenuOpen(false);
                                         setTopicAnswers({});
                                         setTopicDiscussions({});
+                                        setExampleSolutions({});
                                         resetFormFields();
                                       }}
                                       className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium transition-all flex items-center justify-between space-x-2 ${
@@ -3572,7 +3672,7 @@ export default function App() {
                     <div className="flex items-center space-x-2 border-b pb-3">
                       <XCircle size={18} className="text-red-600" />
                       <h2 className="text-base font-bold text-gray-900">
-                        Soal Dijawab Salah ({studentAnalytics.firstWrongQuestions.length})
+                        Soal Dijawab Salah / Lihat Kunci Langsung ({studentAnalytics.firstWrongQuestions.length})
                       </h2>
                     </div>
                     {studentAnalytics.firstWrongQuestions.length === 0 ? (
@@ -3671,7 +3771,7 @@ export default function App() {
 
                     <div className="pt-4 border-t flex items-center justify-between">
                       <button
-                        onClick={() => setShowDiscussion(!showDiscussion)}
+                        onClick={handleToggleMixedDiscussion}
                         className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center space-x-1"
                       >
                         <HelpCircle size={16} />
@@ -3788,22 +3888,41 @@ export default function App() {
                         </div>
 
                         <div className="space-y-6">
-                          {selectedTopic.examples.map((ex) => (
-                            <div key={ex.number} className="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-3">
-                              <span className="inline-block text-xs font-bold uppercase tracking-wider bg-emerald-700 text-white px-2.5 py-1 rounded-md">
-                                Contoh Soal #{ex.number}
-                              </span>
-                              <div className="text-gray-900 font-medium text-sm md:text-base leading-relaxed whitespace-pre-line">
-                                <MathText text={ex.problem} />
-                              </div>
-                              <div className="bg-white border border-emerald-200 rounded-lg p-4 text-sm text-gray-800 space-y-1">
-                                <p className="font-bold text-emerald-800">Pembahasan:</p>
-                                <div className="leading-relaxed whitespace-pre-line">
-                                  <MathText text={ex.solution} />
+                          {selectedTopic.examples.map((ex, idx) => {
+                            const exKey = ex.number ?? idx;
+                            const isSolOpen = Boolean(exampleSolutions[exKey]);
+
+                            return (
+                              <div key={exKey} className="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-3">
+                                <span className="inline-block text-xs font-bold uppercase tracking-wider bg-emerald-700 text-white px-2.5 py-1 rounded-md">
+                                  Contoh Soal #{ex.number}
+                                </span>
+                                <div className="text-gray-900 font-medium text-sm md:text-base leading-relaxed whitespace-pre-line">
+                                  <MathText text={ex.problem} />
                                 </div>
+
+                                <div className="pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleExampleSolution(exKey)}
+                                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-50 transition-colors shadow-2xs"
+                                  >
+                                    {isSolOpen ? <EyeOff size={14} /> : <Eye size={14} />}
+                                    <span>{isSolOpen ? 'Sembunyikan Pembahasan' : 'Lihat Pembahasan'}</span>
+                                  </button>
+                                </div>
+
+                                {isSolOpen && (
+                                  <div className="bg-white border border-emerald-200 rounded-lg p-4 text-sm text-gray-800 space-y-1">
+                                    <p className="font-bold text-emerald-800">Pembahasan:</p>
+                                    <div className="leading-relaxed whitespace-pre-line">
+                                      <MathText text={ex.solution} />
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </section>
                     )}
@@ -3853,7 +3972,7 @@ export default function App() {
                                           : 'bg-red-100 text-red-800'
                                       }`}
                                     >
-                                      {savedAttempt.isFirstCorrect ? 'Langsung Benar' : 'Pernah Salah'}
+                                      {savedAttempt.isFirstCorrect ? 'Langsung Benar' : 'Pernah Salah / Lihat Kunci'}
                                     </span>
                                   )}
                                 </div>
@@ -3922,7 +4041,7 @@ export default function App() {
                         <ul className="space-y-2.5 text-xs font-medium text-gray-600">
                           <li>
                             <a href="#materi" className="text-emerald-700 font-semibold hover:underline">
-                              01. Konsep & Rumus LaTeX
+                              01. Konsep & Rumus
                             </a>
                           </li>
                           {selectedTopic.examples && selectedTopic.examples.length > 0 && (
