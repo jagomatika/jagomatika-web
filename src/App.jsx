@@ -514,6 +514,59 @@ export default function App() {
     setIsSyncing(false);
   }
 };
+// ==========================================
+  // SINKRONISASI KURIKULUM & BANK SOAL KE CLOUD
+  // ==========================================
+  const syncContentToCloud = async (nextCurriculum, nextQuestionBank) => {
+    localStorage.setItem('jagomatika_curriculum', JSON.stringify(nextCurriculum));
+    localStorage.setItem('jagomatika_questionbank', JSON.stringify(nextQuestionBank));
+
+    if (!supabase) return;
+    try {
+      const { error } = await supabase.rpc('save_app_content', {
+        new_curriculum: nextCurriculum,
+        new_question_bank: nextQuestionBank,
+        admin_key: EDITOR_PASSWORD
+      });
+      if (error) throw error;
+    } catch (err) {
+      console.error('Gagal menyinkronkan materi ke cloud:', err);
+      showToast('⚠️ Tersimpan lokal, namun gagal sinkron ke cloud Supabase.');
+    }
+  };
+
+  useEffect(() => {
+    if (!supabase) return;
+    const loadGlobalContentFromCloud = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('app_content')
+          .select('curriculum_data, question_bank')
+          .eq('id', 'main')
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (data) {
+          if (Array.isArray(data.curriculum_data) && data.curriculum_data.length > 0) {
+            setCurriculumData(data.curriculum_data);
+            localStorage.setItem('jagomatika_curriculum', JSON.stringify(data.curriculum_data));
+          }
+          if (Array.isArray(data.question_bank)) {
+            setQuestionBank(data.question_bank);
+            localStorage.setItem('jagomatika_questionbank', JSON.stringify(data.question_bank));
+          }
+        } else {
+          // Unggah materi bawaan ke cloud saat pertama kali dijalankan
+          await syncContentToCloud(curriculumData, questionBank);
+        }
+      } catch (err) {
+        console.error('Gagal memuat materi dari cloud:', err);
+      }
+    };
+
+    loadGlobalContentFromCloud();
+  }, []);
 
   useEffect(() => {
     if (!supabase) return;
@@ -1172,7 +1225,7 @@ export default function App() {
         };
       });
       setCurriculumData(updatedCurriculum);
-      localStorage.setItem('jagomatika_curriculum', JSON.stringify(updatedCurriculum));
+      syncContentToCloud(updatedCurriculum, questionBank);
       resetFormFields();
       showToast('↕️ Urutan Unit berhasil diperbarui!');
       return;
@@ -1198,7 +1251,7 @@ export default function App() {
         };
       });
       setCurriculumData(updatedCurriculum);
-      localStorage.setItem('jagomatika_curriculum', JSON.stringify(updatedCurriculum));
+      syncContentToCloud(updatedCurriculum, questionBank);
       resetFormFields();
       showToast('↕️ Urutan Sub-Unit / Topik berhasil diperbarui!');
       return;
@@ -1248,7 +1301,7 @@ export default function App() {
     }));
 
     setCurriculumData(updatedCurriculum);
-    localStorage.setItem('jagomatika_curriculum', JSON.stringify(updatedCurriculum));
+    syncContentToCloud(updatedCurriculum, questionBank);
     resetFormFields();
     showToast('↕️ Urutan item berhasil diperbarui!');
   };
@@ -1305,7 +1358,7 @@ export default function App() {
     });
 
     setCurriculumData(updatedCurriculum);
-    localStorage.setItem('jagomatika_curriculum', JSON.stringify(updatedCurriculum));
+    syncContentToCloud(updatedCurriculum, questionBank);
     showToast(editingUnitId ? '✅ Unit berhasil diperbarui!' : '✅ Unit baru berhasil ditambahkan!');
     resetFormFields();
   };
@@ -1319,7 +1372,7 @@ export default function App() {
       };
     });
     setCurriculumData(updatedCurriculum);
-    localStorage.setItem('jagomatika_curriculum', JSON.stringify(updatedCurriculum));
+    syncContentToCloud(updatedCurriculum, questionBank);
     showToast('🗑️ Unit berhasil dihapus.');
   };
 
@@ -1367,7 +1420,7 @@ export default function App() {
     });
 
     setCurriculumData(updatedCurriculum);
-    localStorage.setItem('jagomatika_curriculum', JSON.stringify(updatedCurriculum));
+    syncContentToCloud(updatedCurriculum, questionBank);
     showToast(editingTopicId ? '✅ Topik berhasil diperbarui!' : '✅ Topik baru berhasil ditambahkan!');
     resetFormFields();
   };
@@ -1387,7 +1440,7 @@ export default function App() {
       };
     });
     setCurriculumData(updatedCurriculum);
-    localStorage.setItem('jagomatika_curriculum', JSON.stringify(updatedCurriculum));
+    syncContentToCloud(updatedCurriculum, questionBank);
     showToast('🗑️ Topik berhasil dihapus.');
   };
 
@@ -1425,7 +1478,7 @@ export default function App() {
         .filter((_, idx) => idx !== index)
         .map((item, idx) => ({ ...item, id: idx + 1 }));
       setQuestionBank(updatedBank);
-      localStorage.setItem('jagomatika_questionbank', JSON.stringify(updatedBank));
+      syncContentToCloud(curriculumData, updatedBank);
       if (currentQIndex >= updatedBank.length) {
         setCurrentQIndex(0);
       }
@@ -1456,7 +1509,7 @@ export default function App() {
       }));
 
       setCurriculumData(updatedCurriculum);
-      localStorage.setItem('jagomatika_curriculum', JSON.stringify(updatedCurriculum));
+      syncContentToCloud(updatedCurriculum, questionBank);
       showToast('🗑️ Item berhasil dihapus dari topik.');
     }
 
@@ -1503,7 +1556,7 @@ export default function App() {
         showToast('✅ Soal campuran baru berhasil ditambahkan!');
       }
       setQuestionBank(updatedBank);
-      localStorage.setItem('jagomatika_questionbank', JSON.stringify(updatedBank));
+      syncContentToCloud(curriculumData, updatedBank);
       resetFormFields();
       return;
     }
@@ -1592,7 +1645,7 @@ export default function App() {
     }));
 
     setCurriculumData(updatedCurriculum);
-    localStorage.setItem('jagomatika_curriculum', JSON.stringify(updatedCurriculum));
+    syncContentToCloud(updatedCurriculum, questionBank);
     resetFormFields();
     showToast(
       isUpdating
@@ -1621,11 +1674,17 @@ export default function App() {
           const parsedData = JSON.parse(event.target.result);
           if (parsedData.curriculumData) {
             setCurriculumData(parsedData.curriculumData);
-            localStorage.setItem('jagomatika_curriculum', JSON.stringify(parsedData.curriculumData));
+            syncContentToCloud(
+  parsedData.curriculumData || curriculumData,
+  parsedData.questionBank || questionBank
+);
           }
           if (parsedData.questionBank) {
             setQuestionBank(parsedData.questionBank);
-            localStorage.setItem('jagomatika_questionbank', JSON.stringify(parsedData.questionBank));
+            syncContentToCloud(
+  parsedData.curriculumData || curriculumData,
+  parsedData.questionBank || questionBank
+);
           }
           showToast('✅ Materi berhasil dipulihkan dari file JSON!');
         } catch (error) {
