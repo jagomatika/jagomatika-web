@@ -469,35 +469,51 @@ export default function App() {
   // PULIHKAN SESI LOGIN SISWA SAAT WEB DIBUKA
   // ==========================================
   const loadStudentProgressFromCloud = async (user) => {
-    if (!supabase || !user) return;
-    setIsSyncing(true);
-    try {
-      const { data, error } = await supabase
-        .from('student_progress')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
+  if (!supabase || !user) return;
+  setIsSyncing(true);
+  try {
+    const { data, error } = await supabase
+      .from('student_progress')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-      if (error) throw error;
+    if (error) throw error;
 
-      if (data) {
-        setCurrentStudentData({
-          name: data.full_name,
-          username: data.username,
-          schoolInfo: data.school_info || '',
-          lastActive: data.updated_at,
-          visitedTopics: data.visited_topics || [],
-          completedTopics: data.completed_topics || [],
-          topicAttempts: data.topic_attempts || {},
-          mixedAttempts: data.mixed_attempts || {}
-        });
-      }
-    } catch (err) {
-      console.error('Gagal memuat progres cloud:', err);
-    } finally {
-      setIsSyncing(false);
+    if (data) {
+      setCurrentStudentData({
+        name: data.full_name,
+        username: data.username,
+        schoolInfo: data.school_info || '',
+        lastActive: data.updated_at,
+        visitedTopics: data.visited_topics || [],
+        completedTopics: data.completed_topics || [],
+        topicAttempts: data.topic_attempts || {},
+        mixedAttempts: data.mixed_attempts || {}
+      });
+    } else {
+      const fallbackUsername = user.user_metadata?.username || (user.email || '').split('@')[0];
+      const fallbackName = user.user_metadata?.full_name || fallbackUsername || 'Siswa';
+      const fallbackSchool = user.user_metadata?.school_info || '';
+      const recovered = createEmptyProgress(fallbackName, fallbackUsername, fallbackSchool);
+      await supabase.from('student_progress').upsert(
+        {
+          user_id: user.id,
+          username: fallbackUsername,
+          full_name: fallbackName,
+          school_info: fallbackSchool,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: 'user_id' }
+      );
+      setCurrentStudentData(recovered);
     }
-  };
+  } catch (err) {
+    console.error('Gagal memuat progres cloud:', err);
+  } finally {
+    setIsSyncing(false);
+  }
+};
 
   useEffect(() => {
     if (!supabase) return;
@@ -645,29 +661,37 @@ export default function App() {
     setAuthLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
-        email,
-        password: authPassword
-      });
-
-      if (error) {
-        if (error.message.toLowerCase().includes('already registered')) {
-          setAuthError('Username ini sudah terdaftar. Silakan pilih username lain atau klik tab "Masuk".');
-        } else {
-          setAuthError(error.message);
-        }
-        return;
-      }
-
-      if (data?.user) {
-        const initialProgress = {
-          ...currentStudentData,
-          name: authFullName.trim(),
+      email,
+      password: authPassword,
+      options: {
+        data: {
           username: cleanUsername,
-          schoolInfo: authSchoolInfo.trim(),
-          lastActive: new Date().toISOString()
-        };
+          full_name: authFullName.trim(),
+          school_info: authSchoolInfo.trim()
+        }
+      }
+    });
 
-        const { error: insertErr } = await supabase.from('student_progress').insert({
+    if (error) {
+      if (error.message.toLowerCase().includes('already registered')) {
+        setAuthError('Username ini sudah terdaftar. Silakan pilih username lain atau klik tab "Masuk".');
+      } else {
+        setAuthError(error.message);
+      }
+      return;
+    }
+
+    if (data?.user) {
+      const initialProgress = {
+        ...currentStudentData,
+        name: authFullName.trim(),
+        username: cleanUsername,
+        schoolInfo: authSchoolInfo.trim(),
+        lastActive: new Date().toISOString()
+      };
+
+      const { error: upsertErr } = await supabase.from('student_progress').upsert(
+        {
           user_id: data.user.id,
           username: cleanUsername,
           full_name: authFullName.trim(),
@@ -677,23 +701,26 @@ export default function App() {
           topic_attempts: initialProgress.topicAttempts || {},
           mixed_attempts: initialProgress.mixedAttempts || {},
           updated_at: new Date().toISOString()
-        });
+        },
+        { onConflict: 'user_id' }
+      );
 
-        if (insertErr) {
-          if (insertErr.message.includes('duplicate key')) {
-            setAuthError('Username sudah digunakan siswa lain. Silakan pilih username lain.');
-            return;
-          }
-          throw insertErr;
+      if (upsertErr) {
+        if (upsertErr.message.includes('duplicate key')) {
+          setAuthError('Username sudah digunakan siswa lain. Silakan pilih username lain.');
+          return;
         }
-
-        localStorage.removeItem('jagomatika_guest_progress');
-        setAuthUser(data.user);
-        setCurrentStudentData(initialProgress);
-        setShowAuthModal(false);
-        setAuthPassword('');
-        showToast(`🎉 Akun "${cleanUsername}" berhasil dibuat! Progres otomatis tersimpan ke cloud.`);
+        setAuthError(`Gagal menyimpan profil ke database: ${upsertErr.message}`);
+        return;
       }
+
+      localStorage.removeItem('jagomatika_guest_progress');
+      setAuthUser(data.user);
+      setCurrentStudentData(initialProgress);
+      setShowAuthModal(false);
+      setAuthPassword('');
+      showToast(`🎉 Akun "${cleanUsername}" berhasil dibuat! Progres otomatis tersimpan ke cloud.`);
+    }
     } catch (err) {
       setAuthError('Terjadi kesalahan saat mendaftar. Pastikan "Confirm email" di Supabase sudah dimatikan.');
     } finally {
