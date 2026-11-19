@@ -252,6 +252,7 @@ const defaultQuestionBank = [
       'Gunakan penjabaran kubus: $\\left(x + \\frac{1}{x}\\right)^3 = x^3 + \\frac{1}{x^3} + 3\\left(x + \\frac{1}{x}\\right)$. Substitusi nilai $3$: $27 = x^3 + \\frac{1}{x^3} + 9 \\implies x^3 + \\frac{1}{x^3} = 18$.'
   }
 ];
+
 function reorderList(list, fromIndex, toIndex) {
   const result = Array.from(list);
   const [removed] = result.splice(fromIndex, 1);
@@ -469,59 +470,71 @@ export default function App() {
   // PULIHKAN SESI LOGIN SISWA SAAT WEB DIBUKA
   // ==========================================
   const loadStudentProgressFromCloud = async (user) => {
-  if (!supabase || !user) return;
-  setIsSyncing(true);
-  try {
-    const { data, error } = await supabase
-      .from('student_progress')
-      .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    if (!supabase || !user) return;
+    setIsSyncing(true);
+    try {
+      const { data, error } = await supabase
+        .from('student_progress')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-    if (error) throw error;
+      if (error) throw error;
 
-    if (data) {
-      setCurrentStudentData({
-        name: data.full_name,
-        username: data.username,
-        schoolInfo: data.school_info || '',
-        lastActive: data.updated_at,
-        visitedTopics: data.visited_topics || [],
-        completedTopics: data.completed_topics || [],
-        topicAttempts: data.topic_attempts || {},
-        mixedAttempts: data.mixed_attempts || {}
-      });
-    } else {
-      const fallbackUsername = user.user_metadata?.username || (user.email || '').split('@')[0];
-      const fallbackName = user.user_metadata?.full_name || fallbackUsername || 'Siswa';
-      const fallbackSchool = user.user_metadata?.school_info || '';
-      const recovered = createEmptyProgress(fallbackName, fallbackUsername, fallbackSchool);
-      await supabase.from('student_progress').upsert(
-        {
-          user_id: user.id,
-          username: fallbackUsername,
-          full_name: fallbackName,
-          school_info: fallbackSchool,
-          updated_at: new Date().toISOString()
-        },
-        { onConflict: 'user_id' }
-      );
-      setCurrentStudentData(recovered);
+      if (data) {
+        setCurrentStudentData({
+          name: data.full_name,
+          username: data.username,
+          schoolInfo: data.school_info || '',
+          lastActive: data.updated_at,
+          visitedTopics: data.visited_topics || [],
+          completedTopics: data.completed_topics || [],
+          topicAttempts: data.topic_attempts || {},
+          mixedAttempts: data.mixed_attempts || {}
+        });
+      } else {
+        const fallbackUsername = user.user_metadata?.username || (user.email || '').split('@')[0];
+        const fallbackName = user.user_metadata?.full_name || fallbackUsername || 'Siswa';
+        const fallbackSchool = user.user_metadata?.school_info || '';
+        const recovered = createEmptyProgress(fallbackName, fallbackUsername, fallbackSchool);
+        await supabase.from('student_progress').upsert(
+          {
+            user_id: user.id,
+            username: fallbackUsername,
+            full_name: fallbackName,
+            school_info: fallbackSchool,
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: 'user_id' }
+        );
+        setCurrentStudentData(recovered);
+      }
+    } catch (err) {
+      console.error('Gagal memuat progres cloud:', err);
+    } finally {
+      setIsSyncing(false);
     }
-  } catch (err) {
-    console.error('Gagal memuat progres cloud:', err);
-  } finally {
-    setIsSyncing(false);
-  }
-};
-// ==========================================
+  };
+
+  // ==========================================
   // SINKRONISASI KURIKULUM & BANK SOAL KE CLOUD
   // ==========================================
-  const syncContentToCloud = async (nextCurriculum, nextQuestionBank) => {
-    localStorage.setItem('jagomatika_curriculum', JSON.stringify(nextCurriculum));
-    localStorage.setItem('jagomatika_questionbank', JSON.stringify(nextQuestionBank));
+  const hasLoadedCloudContentRef = useRef(false);
 
-    if (!supabase) return;
+  const syncContentToCloud = async (nextCurriculum, nextQuestionBank, successMsg = '') => {
+    try {
+      localStorage.setItem('jagomatika_curriculum', JSON.stringify(nextCurriculum));
+      localStorage.setItem('jagomatika_questionbank', JSON.stringify(nextQuestionBank));
+    } catch (e) {
+      console.error('Gagal menyimpan ke localStorage:', e);
+    }
+
+    if (!supabase) {
+      if (successMsg) showToast(`${successMsg} (Lokal saja — Supabase belum aktif)`);
+      return;
+    }
+
+    setIsSyncing(true);
     try {
       const { error } = await supabase.rpc('save_app_content', {
         new_curriculum: nextCurriculum,
@@ -529,14 +542,19 @@ export default function App() {
         admin_key: EDITOR_PASSWORD
       });
       if (error) throw error;
+      if (successMsg) showToast(`${successMsg} ☁️ Tersimpan di cloud untuk semua siswa.`);
     } catch (err) {
       console.error('Gagal menyinkronkan materi ke cloud:', err);
       showToast('⚠️ Tersimpan lokal, namun gagal sinkron ke cloud Supabase.');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase || hasLoadedCloudContentRef.current) return;
+    hasLoadedCloudContentRef.current = true;
+
     const loadGlobalContentFromCloud = async () => {
       try {
         const { data, error } = await supabase
@@ -557,7 +575,6 @@ export default function App() {
             localStorage.setItem('jagomatika_questionbank', JSON.stringify(data.question_bank));
           }
         } else {
-          // Unggah materi bawaan ke cloud saat pertama kali dijalankan
           await syncContentToCloud(curriculumData, questionBank);
         }
       } catch (err) {
@@ -714,66 +731,66 @@ export default function App() {
     setAuthLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
-      email,
-      password: authPassword,
-      options: {
-        data: {
-          username: cleanUsername,
-          full_name: authFullName.trim(),
-          school_info: authSchoolInfo.trim()
+        email,
+        password: authPassword,
+        options: {
+          data: {
+            username: cleanUsername,
+            full_name: authFullName.trim(),
+            school_info: authSchoolInfo.trim()
+          }
         }
-      }
-    });
+      });
 
-    if (error) {
-      if (error.message.toLowerCase().includes('already registered')) {
-        setAuthError('Username ini sudah terdaftar. Silakan pilih username lain atau klik tab "Masuk".');
-      } else {
-        setAuthError(error.message);
-      }
-      return;
-    }
-
-    if (data?.user) {
-      const initialProgress = {
-        ...currentStudentData,
-        name: authFullName.trim(),
-        username: cleanUsername,
-        schoolInfo: authSchoolInfo.trim(),
-        lastActive: new Date().toISOString()
-      };
-
-      const { error: upsertErr } = await supabase.from('student_progress').upsert(
-        {
-          user_id: data.user.id,
-          username: cleanUsername,
-          full_name: authFullName.trim(),
-          school_info: authSchoolInfo.trim(),
-          visited_topics: initialProgress.visitedTopics || [],
-          completed_topics: initialProgress.completedTopics || [],
-          topic_attempts: initialProgress.topicAttempts || {},
-          mixed_attempts: initialProgress.mixedAttempts || {},
-          updated_at: new Date().toISOString()
-        },
-        { onConflict: 'user_id' }
-      );
-
-      if (upsertErr) {
-        if (upsertErr.message.includes('duplicate key')) {
-          setAuthError('Username sudah digunakan siswa lain. Silakan pilih username lain.');
-          return;
+      if (error) {
+        if (error.message.toLowerCase().includes('already registered')) {
+          setAuthError('Username ini sudah terdaftar. Silakan pilih username lain atau klik tab "Masuk".');
+        } else {
+          setAuthError(error.message);
         }
-        setAuthError(`Gagal menyimpan profil ke database: ${upsertErr.message}`);
         return;
       }
 
-      localStorage.removeItem('jagomatika_guest_progress');
-      setAuthUser(data.user);
-      setCurrentStudentData(initialProgress);
-      setShowAuthModal(false);
-      setAuthPassword('');
-      showToast(`🎉 Akun "${cleanUsername}" berhasil dibuat! Progres otomatis tersimpan ke cloud.`);
-    }
+      if (data?.user) {
+        const initialProgress = {
+          ...currentStudentData,
+          name: authFullName.trim(),
+          username: cleanUsername,
+          schoolInfo: authSchoolInfo.trim(),
+          lastActive: new Date().toISOString()
+        };
+
+        const { error: upsertErr } = await supabase.from('student_progress').upsert(
+          {
+            user_id: data.user.id,
+            username: cleanUsername,
+            full_name: authFullName.trim(),
+            school_info: authSchoolInfo.trim(),
+            visited_topics: initialProgress.visitedTopics || [],
+            completed_topics: initialProgress.completedTopics || [],
+            topic_attempts: initialProgress.topicAttempts || {},
+            mixed_attempts: initialProgress.mixedAttempts || {},
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: 'user_id' }
+        );
+
+        if (upsertErr) {
+          if (upsertErr.message.includes('duplicate key')) {
+            setAuthError('Username sudah digunakan siswa lain. Silakan pilih username lain.');
+            return;
+          }
+          setAuthError(`Gagal menyimpan profil ke database: ${upsertErr.message}`);
+          return;
+        }
+
+        localStorage.removeItem('jagomatika_guest_progress');
+        setAuthUser(data.user);
+        setCurrentStudentData(initialProgress);
+        setShowAuthModal(false);
+        setAuthPassword('');
+        showToast(`🎉 Akun "${cleanUsername}" berhasil dibuat! Progres otomatis tersimpan ke cloud.`);
+      }
     } catch (err) {
       setAuthError('Terjadi kesalahan saat mendaftar. Pastikan "Confirm email" di Supabase sudah dimatikan.');
     } finally {
@@ -1225,9 +1242,8 @@ export default function App() {
         };
       });
       setCurriculumData(updatedCurriculum);
-      syncContentToCloud(updatedCurriculum, questionBank);
+      syncContentToCloud(updatedCurriculum, questionBank, '↕️ Urutan Unit berhasil diperbarui!');
       resetFormFields();
-      showToast('↕️ Urutan Unit berhasil diperbarui!');
       return;
     }
 
@@ -1251,9 +1267,8 @@ export default function App() {
         };
       });
       setCurriculumData(updatedCurriculum);
-      syncContentToCloud(updatedCurriculum, questionBank);
+      syncContentToCloud(updatedCurriculum, questionBank, '↕️ Urutan Sub-Unit / Topik berhasil diperbarui!');
       resetFormFields();
-      showToast('↕️ Urutan Sub-Unit / Topik berhasil diperbarui!');
       return;
     }
 
@@ -1264,9 +1279,8 @@ export default function App() {
         id: idx + 1
       }));
       setQuestionBank(reordered);
-      localStorage.setItem('jagomatika_questionbank', JSON.stringify(reordered));
+      syncContentToCloud(curriculumData, reordered, '↕️ Urutan Bank Soal Campuran berhasil diperbarui!');
       resetFormFields();
-      showToast('↕️ Urutan Bank Soal Campuran berhasil diperbarui!');
       return;
     }
 
@@ -1301,9 +1315,8 @@ export default function App() {
     }));
 
     setCurriculumData(updatedCurriculum);
-    syncContentToCloud(updatedCurriculum, questionBank);
+    syncContentToCloud(updatedCurriculum, questionBank, '↕️ Urutan item berhasil diperbarui!');
     resetFormFields();
-    showToast('↕️ Urutan item berhasil diperbarui!');
   };
 
   const handleDragStart = (e, idx, levelId = null) => {
@@ -1358,8 +1371,11 @@ export default function App() {
     });
 
     setCurriculumData(updatedCurriculum);
-    syncContentToCloud(updatedCurriculum, questionBank);
-    showToast(editingUnitId ? '✅ Unit berhasil diperbarui!' : '✅ Unit baru berhasil ditambahkan!');
+    syncContentToCloud(
+      updatedCurriculum,
+      questionBank,
+      editingUnitId ? '✅ Unit berhasil diperbarui!' : '✅ Unit baru berhasil ditambahkan!'
+    );
     resetFormFields();
   };
 
@@ -1372,8 +1388,7 @@ export default function App() {
       };
     });
     setCurriculumData(updatedCurriculum);
-    syncContentToCloud(updatedCurriculum, questionBank);
-    showToast('🗑️ Unit berhasil dihapus.');
+    syncContentToCloud(updatedCurriculum, questionBank, '🗑️ Unit berhasil dihapus.');
   };
 
   const handleSaveTopic = () => {
@@ -1420,8 +1435,11 @@ export default function App() {
     });
 
     setCurriculumData(updatedCurriculum);
-    syncContentToCloud(updatedCurriculum, questionBank);
-    showToast(editingTopicId ? '✅ Topik berhasil diperbarui!' : '✅ Topik baru berhasil ditambahkan!');
+    syncContentToCloud(
+      updatedCurriculum,
+      questionBank,
+      editingTopicId ? '✅ Topik berhasil diperbarui!' : '✅ Topik baru berhasil ditambahkan!'
+    );
     resetFormFields();
   };
 
@@ -1440,8 +1458,7 @@ export default function App() {
       };
     });
     setCurriculumData(updatedCurriculum);
-    syncContentToCloud(updatedCurriculum, questionBank);
-    showToast('🗑️ Topik berhasil dihapus.');
+    syncContentToCloud(updatedCurriculum, questionBank, '🗑️ Topik berhasil dihapus.');
   };
 
   const handleStartEditItem = (index, item) => {
@@ -1478,11 +1495,10 @@ export default function App() {
         .filter((_, idx) => idx !== index)
         .map((item, idx) => ({ ...item, id: idx + 1 }));
       setQuestionBank(updatedBank);
-      syncContentToCloud(curriculumData, updatedBank);
+      syncContentToCloud(curriculumData, updatedBank, '🗑️ Soal campuran berhasil dihapus.');
       if (currentQIndex >= updatedBank.length) {
         setCurrentQIndex(0);
       }
-      showToast('🗑️ Soal campuran berhasil dihapus.');
     } else {
       const updatedCurriculum = curriculumData.map((lvl) => ({
         ...lvl,
@@ -1509,8 +1525,7 @@ export default function App() {
       }));
 
       setCurriculumData(updatedCurriculum);
-      syncContentToCloud(updatedCurriculum, questionBank);
-      showToast('🗑️ Item berhasil dihapus dari topik.');
+      syncContentToCloud(updatedCurriculum, questionBank, '🗑️ Item berhasil dihapus dari topik.');
     }
 
     if (editingIndex === index) {
@@ -1542,7 +1557,6 @@ export default function App() {
               }
             : item
         );
-        showToast('✅ Perubahan soal campuran berhasil disimpan!');
       } else {
         const newQ = {
           id: questionBank.length + 1,
@@ -1553,10 +1567,13 @@ export default function App() {
           discussion: edDiscussion
         };
         updatedBank = [...questionBank, newQ];
-        showToast('✅ Soal campuran baru berhasil ditambahkan!');
       }
       setQuestionBank(updatedBank);
-      syncContentToCloud(curriculumData, updatedBank);
+      syncContentToCloud(
+        curriculumData,
+        updatedBank,
+        isUpdating ? '✅ Perubahan soal campuran berhasil disimpan!' : '✅ Soal campuran baru berhasil ditambahkan!'
+      );
       resetFormFields();
       return;
     }
@@ -1645,13 +1662,14 @@ export default function App() {
     }));
 
     setCurriculumData(updatedCurriculum);
-    syncContentToCloud(updatedCurriculum, questionBank);
-    resetFormFields();
-    showToast(
+    syncContentToCloud(
+      updatedCurriculum,
+      questionBank,
       isUpdating
         ? `✅ Perubahan berhasil diperbarui pada "${selectedTopic.title}"!`
         : `✅ Konten baru berhasil ditambahkan ke "${selectedTopic.title}"!`
     );
+    resetFormFields();
   };
 
   const handleExportData = () => {
@@ -1672,21 +1690,15 @@ export default function App() {
       fileReader.onload = (event) => {
         try {
           const parsedData = JSON.parse(event.target.result);
+          const nextCurr = parsedData.curriculumData || curriculumData;
+          const nextBank = parsedData.questionBank || questionBank;
           if (parsedData.curriculumData) {
             setCurriculumData(parsedData.curriculumData);
-            syncContentToCloud(
-  parsedData.curriculumData || curriculumData,
-  parsedData.questionBank || questionBank
-);
           }
           if (parsedData.questionBank) {
             setQuestionBank(parsedData.questionBank);
-            syncContentToCloud(
-  parsedData.curriculumData || curriculumData,
-  parsedData.questionBank || questionBank
-);
           }
-          showToast('✅ Materi berhasil dipulihkan dari file JSON!');
+          syncContentToCloud(nextCurr, nextBank, '✅ Materi berhasil dipulihkan dari file JSON!');
         } catch (error) {
           alert('Format file JSON tidak valid!');
         }
@@ -2311,7 +2323,13 @@ export default function App() {
                         }`}
                       >
                         <Cloud size={12} />
-                        <span>{isSupabaseConfigured ? 'Supabase Aktif' : 'Supabase Belum Terpasang'}</span>
+                        <span>
+                          {isSupabaseConfigured
+                            ? isSyncing
+                              ? 'Menyimpan ke Cloud...'
+                              : 'Supabase Aktif'
+                            : 'Supabase Belum Terpasang'}
+                        </span>
                       </span>
                     </div>
                     <h1 className="text-2xl md:text-3xl font-extrabold">Kelola Materi & Pantau Siswa</h1>
