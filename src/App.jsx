@@ -1505,7 +1505,7 @@ export default function App() {
           topicsList.push({
             id: newTopicId,
             title: edTopicTitle,
-            coachNote: edCoachNote || 'Catatan pelatih...',
+            coachNote: edCoachNote || 'Catatan pembina...',
             sections: [],
             examples: [],
             exercises: []
@@ -2050,7 +2050,7 @@ export default function App() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-gray-900">Akses Mode Editor</h3>
-                  <p className="text-xs text-gray-500">Masukkan kata sandi pelatih</p>
+                  <p className="text-xs text-gray-500">Masukkan kata sandi pembina</p>
                 </div>
               </div>
               <button
@@ -2379,7 +2379,7 @@ export default function App() {
                   <div className="text-xs text-amber-950 space-y-0.5">
                     <p className="font-bold">Anda sedang belajar sebagai Siswa Tamu</p>
                     <p className="text-amber-800">
-                      Buat akun atau masuk agar progres nilai Anda otomatis tercatat untuk pelatih dan bisa dilanjutkan di HP/laptop lain.
+                      Buat akun atau masuk agar progres nilai Anda otomatis tercatat untuk pembina dan bisa dilanjutkan di HP/laptop lain.
                     </p>
                   </div>
                 </div>
@@ -2955,7 +2955,7 @@ export default function App() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Catatan Pelatih (Coach Note)</label>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Catatan Pembina (Coach Note)</label>
                       <textarea
                         rows={2}
                         value={edCoachNote}
@@ -3871,7 +3871,7 @@ export default function App() {
                       )}
 
                       <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl text-sm text-amber-900">
-                        <strong>Catatan Pelatih:</strong>{' '}
+                        <strong>Catatan Pembina:</strong>{' '}
                         <MathText text={selectedTopic.coachNote || 'Pelajari materi di atas dengan seksama.'} />
                       </div>
                     </section>
