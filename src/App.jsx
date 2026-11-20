@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   BookOpen,
@@ -39,7 +39,8 @@ import {
   LogOut,
   LogIn,
   UserPlus,
-  RefreshCw
+  RefreshCw,
+  Search
 } from 'lucide-react';
 
 const EDITOR_PASSWORD = 'punyawebolim';
@@ -83,6 +84,102 @@ function MathText({ text = '', className = '' }) {
   }, [text]);
 
   return <span ref={containerRef} className={className} />;
+}
+
+// ==========================================
+// HELPER PENCARIAN CERDAS (PERSIS & MIRIP)
+// ==========================================
+function normalizeForSearch(raw = '') {
+  return String(raw)
+    .toLowerCase()
+    .replace(/\$\$/g, ' ')
+    .replace(/\$/g, ' ')
+    .replace(/\\(frac|sqrt|times|cdot|equiv|pmod|implies|left|right|quad|text|dots|ldots|cdots|neq|leq|geq)/g, ' ')
+    .replace(/[{}^_\\()[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function levenshteinDistance(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let diag = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const temp = prev[j];
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diag + cost);
+      diag = temp;
+    }
+  }
+  return prev[b.length];
+}
+
+function evaluateKeywordMatch(rawQuery, fields = []) {
+  const cleanQuery = normalizeForSearch(rawQuery);
+  if (!cleanQuery) return null;
+
+  const combinedRaw = fields.filter(Boolean).join(' ').toLowerCase();
+  const combinedClean = normalizeForSearch(fields.filter(Boolean).join(' '));
+  if (!combinedClean) return null;
+
+  // 1. Kecocokan Frasa Persis
+  if (combinedRaw.includes(rawQuery.trim().toLowerCase()) || combinedClean.includes(cleanQuery)) {
+    return { score: 100, matchType: 'exact' };
+  }
+
+  const queryTokens = cleanQuery.split(' ').filter((t) => t.length >= 2);
+  if (queryTokens.length === 0) return null;
+
+  const targetTokens = Array.from(
+    new Set(combinedClean.split(/[^a-z0-9]+/).filter((t) => t.length >= 2))
+  );
+
+  let exactTokenHits = 0;
+  let fuzzyTokenHits = 0;
+
+  for (const qTok of queryTokens) {
+    if (combinedClean.includes(qTok)) {
+      exactTokenHits += 1;
+      continue;
+    }
+
+    // Cek kemiripan awalan kata atau jarak edit (typo ringan)
+    let foundSimilar = false;
+    for (const tTok of targetTokens) {
+      if (qTok.length >= 4 && (tTok.startsWith(qTok) || qTok.startsWith(tTok))) {
+        foundSimilar = true;
+        break;
+      }
+      if (qTok.length >= 4 && Math.abs(qTok.length - tTok.length) <= 2) {
+        const maxAllowedDist = qTok.length >= 7 ? 2 : 1;
+        if (levenshteinDistance(qTok, tTok) <= maxAllowedDist) {
+          foundSimilar = true;
+          break;
+        }
+      }
+    }
+
+    if (foundSimilar) {
+      fuzzyTokenHits += 1;
+    }
+  }
+
+  const totalMatched = exactTokenHits + fuzzyTokenHits;
+  if (totalMatched === 0) return null;
+
+  const coverage = totalMatched / queryTokens.length;
+  // Jika query terdiri dari banyak kata, minimal separuh kata cocok
+  if (queryTokens.length > 1 && coverage < 0.5) return null;
+
+  const score = Math.round(exactTokenHits * 35 + fuzzyTokenHits * 20 + coverage * 25);
+  const matchType = fuzzyTokenHits === 0 && exactTokenHits === queryTokens.length ? 'exact' : 'similar';
+
+  return { score, matchType };
 }
 
 const defaultCurriculumData = [
@@ -298,6 +395,14 @@ export default function App() {
   });
 
   // ==========================================
+  // STATE PENCARIAN GLOBAL (MATERI & SOAL)
+  // ==========================================
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchFilter, setSearchFilter] = useState('all'); // 'all' | 'materi' | 'example' | 'exercise' | 'mixed'
+  const searchInputRef = useRef(null);
+
+  // ==========================================
   // STATE AUTENTIKASI & PROGRES SISWA (CLOUD)
   // ==========================================
   const [authUser, setAuthUser] = useState(null);
@@ -440,6 +545,28 @@ export default function App() {
     setTimeout(() => setSaveNotification(''), 3500);
   };
 
+  // Pintasan Keyboard Ctrl+K / Cmd+K untuk membuka Pencarian & Esc untuk menutup
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowSearchModal((prev) => !prev);
+      } else if (e.key === 'Escape' && showSearchModal) {
+        setShowSearchModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showSearchModal]);
+
+  useEffect(() => {
+    if (showSearchModal) {
+      setTimeout(() => {
+        if (searchInputRef.current) searchInputRef.current.focus();
+      }, 50);
+    }
+  }, [showSearchModal]);
+
   // Reset pembahasan contoh soal saat berpindah topik
   useEffect(() => {
     setExampleSolutions({});
@@ -471,6 +598,231 @@ export default function App() {
       document.head.appendChild(script);
     }
   }, []);
+
+  // ==========================================
+  // KALKULASI HASIL PENCARIAN GLOBAL
+  // ==========================================
+  const searchResults = useMemo(() => {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return [];
+
+    const results = [];
+
+    curriculumData.forEach((lvl) => {
+      lvl.units.forEach((unt) => {
+        unt.topics.forEach((top) => {
+          // 1. Cari pada Judul Topik & Catatan Pembina
+          const topicMatch = evaluateKeywordMatch(trimmed, [top.title, top.coachNote]);
+          if (topicMatch) {
+            results.push({
+              uid: `topic-${top.id}`,
+              kind: 'materi',
+              badgeLabel: 'Topik Materi',
+              score: topicMatch.score + 10,
+              matchType: topicMatch.matchType,
+              breadcrumb: `${lvl.levelTitle} • ${unt.title}`,
+              title: top.title,
+              snippet: top.coachNote || '',
+              levelId: lvl.levelId,
+              unitId: unt.id,
+              topicId: top.id,
+              topicObj: top
+            });
+          }
+
+          // 2. Cari pada Sub-Bab Materi / Rumus (sections)
+          (top.sections || []).forEach((sec, sIdx) => {
+            const secMatch = evaluateKeywordMatch(trimmed, [
+              sec.heading,
+              ...(sec.paragraphs || []),
+              ...(sec.formulas || [])
+            ]);
+            if (secMatch) {
+              results.push({
+                uid: `sec-${top.id}-${sIdx}`,
+                kind: 'materi',
+                badgeLabel: 'Sub-Bab Teori & Rumus',
+                score: secMatch.score,
+                matchType: secMatch.matchType,
+                breadcrumb: `${lvl.levelTitle} • ${top.title}`,
+                title: sec.heading || top.title,
+                snippet: (sec.paragraphs && sec.paragraphs[0]) || (sec.formulas && sec.formulas[0]) || '',
+                levelId: lvl.levelId,
+                unitId: unt.id,
+                topicId: top.id,
+                itemIndex: sIdx,
+                itemData: sec
+              });
+            }
+          });
+
+          // 3. Cari pada Contoh Soal (examples)
+          (top.examples || []).forEach((ex, exIdx) => {
+            const exMatch = evaluateKeywordMatch(trimmed, [ex.problem, ex.solution]);
+            if (exMatch) {
+              results.push({
+                uid: `ex-${top.id}-${exIdx}`,
+                kind: 'example',
+                badgeLabel: `Contoh Soal #${ex.number}`,
+                score: exMatch.score,
+                matchType: exMatch.matchType,
+                breadcrumb: `${lvl.levelTitle} • ${top.title}`,
+                title: ex.problem,
+                snippet: ex.solution || '',
+                levelId: lvl.levelId,
+                unitId: unt.id,
+                topicId: top.id,
+                exampleKey: ex.number ?? exIdx,
+                itemIndex: exIdx,
+                itemData: ex
+              });
+            }
+          });
+
+          // 4. Cari pada Latihan Mandiri (exercises)
+          (top.exercises || []).forEach((q, qIdx) => {
+            const qMatch = evaluateKeywordMatch(trimmed, [
+              q.question,
+              ...(q.options || []),
+              q.discussion
+            ]);
+            if (qMatch) {
+              results.push({
+                uid: `q-${top.id}-${qIdx}`,
+                kind: 'exercise',
+                badgeLabel: `Latihan Mandiri #${q.id}`,
+                score: qMatch.score,
+                matchType: qMatch.matchType,
+                breadcrumb: `${lvl.levelTitle} • ${top.title}`,
+                title: q.question,
+                snippet: q.discussion || '',
+                levelId: lvl.levelId,
+                unitId: unt.id,
+                topicId: top.id,
+                itemIndex: qIdx,
+                itemData: q
+              });
+            }
+          });
+        });
+      });
+    });
+
+    // 5. Cari pada Bank Soal Campuran (questionBank)
+    (questionBank || []).forEach((item, idx) => {
+      const mMatch = evaluateKeywordMatch(trimmed, [
+        item.category,
+        item.question,
+        ...(item.options || []),
+        item.discussion
+      ]);
+      if (mMatch) {
+        results.push({
+          uid: `mixed-${idx}`,
+          kind: 'mixed',
+          badgeLabel: `Bank Soal Campuran (${item.category || 'Umum'})`,
+          score: mMatch.score,
+          matchType: mMatch.matchType,
+          breadcrumb: `Simulasi & Latihan Acak • Soal #${idx + 1}`,
+          title: item.question,
+          snippet: item.discussion || '',
+          itemIndex: idx,
+          itemData: item
+        });
+      }
+    });
+
+    return results.sort((a, b) => b.score - a.score);
+  }, [searchQuery, curriculumData, questionBank]);
+
+  const filteredSearchResults = useMemo(() => {
+    if (searchFilter === 'all') return searchResults;
+    return searchResults.filter((r) => r.kind === searchFilter);
+  }, [searchResults, searchFilter]);
+
+  const handleSelectSearchResult = (res) => {
+    setShowSearchModal(false);
+    setMobileMenuOpen(false);
+
+    // Jika sedang berada di Mode Editor, langsung buka item ke Form Edit!
+    if (isEditorMode) {
+      if (res.kind === 'mixed') {
+        setEditorTarget('mixed');
+        handleStartEditItem(res.itemIndex, res.itemData);
+        return;
+      }
+
+      if (res.topicId) {
+        setSelectedTopicId(res.topicId);
+      }
+
+      if (res.uid.startsWith('topic-') && res.topicObj) {
+        setEditorTarget('topic');
+        setTargetLevelId(res.levelId);
+        setTargetUnitId(res.unitId);
+        setEditingTopicId(res.topicObj.id);
+        setEdTopicTitle(res.topicObj.title);
+        setEdCoachNote(res.topicObj.coachNote || '');
+        if (editorFormTopRef.current) {
+          editorFormTopRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+        return;
+      }
+
+      if (res.kind === 'materi' && res.itemData) {
+        setEditorTarget('section');
+        handleStartEditItem(res.itemIndex, res.itemData);
+      } else if (res.kind === 'example' && res.itemData) {
+        setEditorTarget('example');
+        handleStartEditItem(res.itemIndex, res.itemData);
+      } else if (res.kind === 'exercise' && res.itemData) {
+        setEditorTarget('exercise');
+        handleStartEditItem(res.itemIndex, res.itemData);
+      }
+      return;
+    }
+
+    // Jika sedang berada di Mode Siswa / Belajar
+    if (res.kind === 'mixed') {
+      setActiveView('practice');
+      setCurrentQIndex(res.itemIndex);
+      setSelectedAnswer(null);
+      setShowDiscussion(false);
+      return;
+    }
+
+    if (res.levelId) {
+      setOpenLevels((prev) => ({ ...prev, [res.levelId]: true }));
+    }
+    if (res.unitId) {
+      setOpenUnits((prev) => ({ ...prev, [res.unitId]: true }));
+    }
+    if (res.topicId) {
+      setSelectedTopicId(res.topicId);
+    }
+    setActiveView('topic');
+    setTopicAnswers({});
+    setTopicDiscussions({});
+
+    if (res.kind === 'example' && res.exampleKey !== undefined) {
+      setExampleSolutions({ [res.exampleKey]: true });
+    } else {
+      setExampleSolutions({});
+    }
+
+    setTimeout(() => {
+      const targetAnchor =
+        res.kind === 'example'
+          ? 'contoh-soal'
+          : res.kind === 'exercise'
+            ? 'latihan-mandiri'
+            : 'materi';
+      const el = document.getElementById(targetAnchor);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 120);
+  };
 
   // ==========================================
   // PULIHKAN SESI LOGIN SISWA SAAT WEB DIBUKA
@@ -1854,6 +2206,148 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
       {/* ==========================================
+          MODAL PENCARIAN MATERI & SOAL
+          ========================================== */}
+      {showSearchModal && (
+        <div
+          onClick={() => setShowSearchModal(false)}
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-start justify-center p-4 pt-12 md:pt-20"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[82vh]"
+          >
+            {/* Input Pencarian */}
+            <div className="p-4 border-b border-gray-200 flex items-center space-x-3 bg-gray-50/70">
+              <Search size={20} className="text-emerald-700 shrink-0" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari materi, rumus, contoh soal, atau kata kunci mirip (misal: teleskopik, modulo, fpb, 2026)..."
+                className="flex-1 bg-transparent text-sm md:text-base text-gray-900 placeholder-gray-400 focus:outline-none"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="text-xs font-bold text-gray-500 hover:text-gray-800 px-2 py-1 rounded-md hover:bg-gray-200/70"
+                >
+                  Hapus
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowSearchModal(false)}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200/60"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Filter Tab Hasil */}
+            <div className="px-4 py-2.5 border-b border-gray-100 flex items-center gap-1.5 overflow-x-auto bg-white">
+              {[
+                { id: 'all', label: `Semua (${searchResults.length})` },
+                { id: 'materi', label: `Materi (${searchResults.filter((r) => r.kind === 'materi').length})` },
+                { id: 'example', label: `Contoh Soal (${searchResults.filter((r) => r.kind === 'example').length})` },
+                { id: 'exercise', label: `Latihan Mandiri (${searchResults.filter((r) => r.kind === 'exercise').length})` },
+                { id: 'mixed', label: `Bank Soal (${searchResults.filter((r) => r.kind === 'mixed').length})` }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setSearchFilter(tab.id)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
+                    searchFilter === tab.id
+                      ? 'bg-emerald-700 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Daftar Hasil Pencarian */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2.5 bg-gray-50/40">
+              {!searchQuery.trim() ? (
+                <div className="py-10 text-center space-y-2">
+                  <Search size={28} className="mx-auto text-emerald-600/60" />
+                  <p className="text-sm font-bold text-gray-700">Ketik kata kunci untuk mulai mencari</p>
+                  <p className="text-xs text-gray-500 max-w-md mx-auto">
+                    Pencarian otomatis mencocokkan kata kunci persis maupun kata yang mirip di seluruh materi, rumus, contoh soal, dan latihan soal.
+                  </p>
+                </div>
+              ) : filteredSearchResults.length === 0 ? (
+                <div className="py-10 text-center space-y-1.5">
+                  <p className="text-sm font-bold text-gray-700">
+                    Tidak ditemukan hasil untuk "{searchQuery}"
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Coba gunakan kata kunci lain yang lebih singkat atau periksa tab filter di atas.
+                  </p>
+                </div>
+              ) : (
+                filteredSearchResults.map((res) => (
+                  <button
+                    key={res.uid}
+                    type="button"
+                    onClick={() => handleSelectSearchResult(res)}
+                    className="w-full text-left p-4 rounded-xl bg-white border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/40 transition-all shadow-2xs space-y-1.5 group"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2">
+                        <span
+                          className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                            res.kind === 'materi'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : res.kind === 'example'
+                                ? 'bg-amber-100 text-amber-800'
+                                : res.kind === 'exercise'
+                                  ? 'bg-sky-100 text-sky-800'
+                                  : 'bg-purple-100 text-purple-800'
+                          }`}
+                        >
+                          {res.badgeLabel}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            res.matchType === 'exact'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
+                          {res.matchType === 'exact' ? 'Cocok Persis' : 'Mirip Kata Kunci'}
+                        </span>
+                      </div>
+
+                      <span className="text-[11px] font-bold text-emerald-700 opacity-80 group-hover:opacity-100">
+                        {isEditorMode ? 'Edit Item Ini ➔' : 'Buka ➔'}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] font-medium text-gray-500">{res.breadcrumb}</p>
+
+                    <div className="text-sm font-bold text-gray-900 line-clamp-2">
+                      <MathText text={res.title} />
+                    </div>
+
+                    {res.snippet && (
+                      <div className="text-xs text-gray-600 line-clamp-2">
+                        <MathText text={res.snippet} />
+                      </div>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
           MODAL LOGIN / DAFTAR AKUN SISWA
           ========================================== */}
       {showAuthModal && (
@@ -2131,6 +2625,20 @@ export default function App() {
         </div>
 
         <div className="flex items-center space-x-2 md:space-x-3">
+          {/* Tombol Pencarian Global (Tersedia untuk Siswa & Editor) */}
+          <button
+            type="button"
+            onClick={() => setShowSearchModal(true)}
+            title="Cari Materi & Soal (Ctrl + K)"
+            className="flex items-center space-x-2 bg-gray-100 hover:bg-emerald-50 text-gray-700 hover:text-emerald-900 px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-200 hover:border-emerald-300 transition-all"
+          >
+            <Search size={14} className="text-emerald-700" />
+            <span className="hidden md:inline">Cari Materi / Soal</span>
+            <kbd className="hidden lg:inline-block text-[10px] font-semibold bg-white text-gray-500 px-1.5 py-0.5 rounded border border-gray-200">
+              Ctrl+K
+            </kbd>
+          </button>
+
           {!isEditorMode && (
             <>
               {authUser ? (
@@ -2211,6 +2719,21 @@ export default function App() {
         `}
         >
           <div className="p-4 border-b border-gray-100 bg-emerald-50 space-y-2">
+            {/* Tombol Pencarian Cepat di Sidebar */}
+            <button
+              type="button"
+              onClick={() => setShowSearchModal(true)}
+              className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-medium bg-white text-gray-500 border border-emerald-200 hover:border-emerald-400 transition-all shadow-2xs"
+            >
+              <span className="flex items-center space-x-2">
+                <Search size={14} className="text-emerald-700" />
+                <span>Cari materi atau soal...</span>
+              </span>
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                Cari
+              </span>
+            </button>
+
             <button
               onClick={() => {
                 setActiveView('progress');
@@ -2462,7 +2985,15 @@ export default function App() {
                         </div>
                       )}
                   </div>
-                  <div className="flex items-center space-x-3 shrink-0">
+                  <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowSearchModal(true)}
+                      className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 px-4 py-2.5 rounded-xl text-xs font-bold border border-slate-700 transition-all"
+                    >
+                      <Search size={15} />
+                      <span>Cari Konten</span>
+                    </button>
                     <button
                       onClick={() => fileInputRef.current.click()}
                       className="flex items-center space-x-1.5 bg-emerald-800 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold border border-emerald-600 transition-all shadow-xs"
