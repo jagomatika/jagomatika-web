@@ -58,36 +58,8 @@ if (isSupabaseConfigured) {
   }
 }
 
-// Komponen helper untuk merender tulisan & rumus LaTeX ($...$ dan $$...$$) secara real-time
-function MathText({ text = '', className = '' }) {
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    const renderMath = () => {
-      if (containerRef.current) {
-        containerRef.current.textContent = text;
-        if (window.renderMathInElement) {
-          window.renderMathInElement(containerRef.current, {
-            delimiters: [
-              { left: '$$', right: '$$', display: true },
-              { left: '$', right: '$', display: false }
-            ],
-            throwOnError: false
-          });
-        }
-      }
-    };
-
-    renderMath();
-    window.addEventListener('katex-loaded', renderMath);
-    return () => window.removeEventListener('katex-loaded', renderMath);
-  }, [text]);
-
-  return <span ref={containerRef} className={className} />;
-}
-
 // ==========================================
-// HELPER PENCARIAN CERDAS (PERSIS & MIRIP)
+// HELPER PENCARIAN CERDAS & STABILO KUNING
 // ==========================================
 function normalizeForSearch(raw = '') {
   return String(raw)
@@ -180,6 +152,156 @@ function evaluateKeywordMatch(rawQuery, fields = []) {
   const matchType = fuzzyTokenHits === 0 && exactTokenHits === queryTokens.length ? 'exact' : 'similar';
 
   return { score, matchType };
+}
+
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function isWordMatchedForHighlight(word, rawPhraseLower, queryTokens) {
+  const cleanWord = word.toLowerCase();
+  if (!cleanWord) return false;
+
+  if (rawPhraseLower.length === 1) {
+    return cleanWord === rawPhraseLower;
+  }
+
+  if (rawPhraseLower.length >= 2 && cleanWord.includes(rawPhraseLower)) {
+    return true;
+  }
+
+  for (const qTok of queryTokens) {
+    if (cleanWord.includes(qTok)) return true;
+    if (qTok.length >= 4 && (cleanWord.startsWith(qTok) || qTok.startsWith(cleanWord))) {
+      return true;
+    }
+    if (qTok.length >= 4 && Math.abs(qTok.length - cleanWord.length) <= 2) {
+      const maxAllowedDist = qTok.length >= 7 ? 2 : 1;
+      if (levenshteinDistance(qTok, cleanWord) <= maxAllowedDist) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function createHighlightMark(textContent) {
+  const mark = document.createElement('mark');
+  mark.className =
+    'bg-yellow-200 text-yellow-950 font-bold px-0.5 rounded-xs border-b border-yellow-400';
+  mark.textContent = textContent;
+  return mark;
+}
+
+function applyHighlightToElement(rootEl, rawQuery) {
+  const trimmedQuery = (rawQuery || '').trim();
+  if (!rootEl || !trimmedQuery) return;
+
+  const rawPhraseLower = trimmedQuery.toLowerCase();
+  const cleanQuery = normalizeForSearch(trimmedQuery);
+  const queryTokens = cleanQuery.split(' ').filter((t) => t.length >= 2);
+  const phraseRegex =
+    trimmedQuery.length >= 2 ? new RegExp(`(${escapeRegExp(trimmedQuery)})`, 'gi') : null;
+
+  const highlightTextSegment = (segment, fragment) => {
+    const parts = segment.split(/([a-zA-Z0-9\u00C0-\u024F]+)/);
+    parts.forEach((part) => {
+      if (!part) return;
+      if (
+        /^[a-zA-Z0-9\u00C0-\u024F]+$/.test(part) &&
+        isWordMatchedForHighlight(part, rawPhraseLower, queryTokens)
+      ) {
+        fragment.appendChild(createHighlightMark(part));
+      } else {
+        fragment.appendChild(document.createTextNode(part));
+      }
+    });
+  };
+
+  const walkNodes = (node) => {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      // Jika elemen adalah hasil render rumus KaTeX, beri stabilo kuning pada kotak rumus jika cocok
+      if (node.classList?.contains('katex') || node.classList?.contains('katex-display')) {
+        const mathPlain = node.textContent || '';
+        if (evaluateKeywordMatch(trimmedQuery, [mathPlain])) {
+          node.classList.add(
+            'bg-yellow-200',
+            'text-yellow-950',
+            'rounded',
+            'px-1',
+            'ring-1',
+            'ring-yellow-400'
+          );
+        }
+        return;
+      }
+
+      if (node.tagName === 'MARK') return;
+      Array.from(node.childNodes).forEach(walkNodes);
+      return;
+    }
+
+    if (node.nodeType === Node.TEXT_NODE && node.nodeValue) {
+      const textVal = node.nodeValue;
+      const fragment = document.createDocumentFragment();
+      let hasAnyHighlight = false;
+
+      if (phraseRegex && phraseRegex.test(textVal)) {
+        phraseRegex.lastIndex = 0;
+        const chunks = textVal.split(phraseRegex);
+        chunks.forEach((chunk) => {
+          if (!chunk) return;
+          if (chunk.toLowerCase() === rawPhraseLower) {
+            fragment.appendChild(createHighlightMark(chunk));
+            hasAnyHighlight = true;
+          } else {
+            highlightTextSegment(chunk, fragment);
+          }
+        });
+      } else {
+        highlightTextSegment(textVal, fragment);
+        hasAnyHighlight = fragment.querySelector('mark') !== null;
+      }
+
+      if (hasAnyHighlight && node.parentNode) {
+        node.parentNode.replaceChild(fragment, node);
+      }
+    }
+  };
+
+  walkNodes(rootEl);
+}
+
+// Komponen helper untuk merender tulisan, rumus LaTeX ($...$ dan $$...$$), serta stabilo kata kunci
+function MathText({ text = '', className = '', highlightQuery = '' }) {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const renderMath = () => {
+      if (containerRef.current) {
+        containerRef.current.textContent = text;
+        if (window.renderMathInElement) {
+          window.renderMathInElement(containerRef.current, {
+            delimiters: [
+              { left: '$$', right: '$$', display: true },
+              { left: '$', right: '$', display: false }
+            ],
+            throwOnError: false
+          });
+        }
+        if (highlightQuery && highlightQuery.trim()) {
+          applyHighlightToElement(containerRef.current, highlightQuery);
+        }
+      }
+    };
+
+    renderMath();
+    window.addEventListener('katex-loaded', renderMath);
+    return () => window.removeEventListener('katex-loaded', renderMath);
+  }, [text, highlightQuery]);
+
+  return <span ref={containerRef} className={className} />;
 }
 
 const defaultCurriculumData = [
@@ -608,6 +730,15 @@ export default function App() {
 
     const results = [];
 
+    const pickBestSnippet = (candidates) => {
+      for (const c of candidates) {
+        if (c && evaluateKeywordMatch(trimmed, [c])) {
+          return c;
+        }
+      }
+      return candidates.find(Boolean) || '';
+    };
+
     curriculumData.forEach((lvl) => {
       lvl.units.forEach((unt) => {
         unt.topics.forEach((top) => {
@@ -646,7 +777,7 @@ export default function App() {
                 matchType: secMatch.matchType,
                 breadcrumb: `${lvl.levelTitle} • ${top.title}`,
                 title: sec.heading || top.title,
-                snippet: (sec.paragraphs && sec.paragraphs[0]) || (sec.formulas && sec.formulas[0]) || '',
+                snippet: pickBestSnippet([...(sec.paragraphs || []), ...(sec.formulas || [])]),
                 levelId: lvl.levelId,
                 unitId: unt.id,
                 topicId: top.id,
@@ -687,6 +818,9 @@ export default function App() {
               q.discussion
             ]);
             if (qMatch) {
+              const matchedOption = (q.options || []).find((opt) =>
+                evaluateKeywordMatch(trimmed, [opt])
+              );
               results.push({
                 uid: `q-${top.id}-${qIdx}`,
                 kind: 'exercise',
@@ -695,7 +829,10 @@ export default function App() {
                 matchType: qMatch.matchType,
                 breadcrumb: `${lvl.levelTitle} • ${top.title}`,
                 title: q.question,
-                snippet: q.discussion || '',
+                snippet: pickBestSnippet([
+                  matchedOption ? `Opsi: ${matchedOption}` : '',
+                  q.discussion
+                ]),
                 levelId: lvl.levelId,
                 unitId: unt.id,
                 topicId: top.id,
@@ -717,6 +854,9 @@ export default function App() {
         item.discussion
       ]);
       if (mMatch) {
+        const matchedOption = (item.options || []).find((opt) =>
+          evaluateKeywordMatch(trimmed, [opt])
+        );
         results.push({
           uid: `mixed-${idx}`,
           kind: 'mixed',
@@ -725,7 +865,10 @@ export default function App() {
           matchType: mMatch.matchType,
           breadcrumb: `Simulasi & Latihan Acak • Soal #${idx + 1}`,
           title: item.question,
-          snippet: item.discussion || '',
+          snippet: pickBestSnippet([
+            matchedOption ? `Opsi: ${matchedOption}` : '',
+            item.discussion
+          ]),
           itemIndex: idx,
           itemData: item
         });
@@ -2206,7 +2349,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
       {/* ==========================================
-          MODAL PENCARIAN MATERI & SOAL
+          MODAL PENCARIAN MATERI & SOAL (STABILO KUNING)
           ========================================== */}
       {showSearchModal && (
         <div
@@ -2277,7 +2420,7 @@ export default function App() {
                   <Search size={28} className="mx-auto text-emerald-600/60" />
                   <p className="text-sm font-bold text-gray-700">Ketik kata kunci untuk mulai mencari</p>
                   <p className="text-xs text-gray-500 max-w-md mx-auto">
-                    Pencarian otomatis mencocokkan kata kunci persis maupun kata yang mirip di seluruh materi, rumus, contoh soal, dan latihan soal.
+                    Kata kunci yang cocok otomatis diberi stabilo kuning di seluruh materi, rumus, contoh soal, dan latihan soal.
                   </p>
                 </div>
               ) : filteredSearchResults.length === 0 ? (
@@ -2310,7 +2453,7 @@ export default function App() {
                                   : 'bg-purple-100 text-purple-800'
                           }`}
                         >
-                          {res.badgeLabel}
+                          <MathText text={res.badgeLabel} highlightQuery={searchQuery} />
                         </span>
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -2331,12 +2474,12 @@ export default function App() {
                     <p className="text-[11px] font-medium text-gray-500">{res.breadcrumb}</p>
 
                     <div className="text-sm font-bold text-gray-900 line-clamp-2">
-                      <MathText text={res.title} />
+                      <MathText text={res.title} highlightQuery={searchQuery} />
                     </div>
 
                     {res.snippet && (
-                      <div className="text-xs text-gray-600 line-clamp-2">
-                        <MathText text={res.snippet} />
+                      <div className="text-xs text-gray-600 line-clamp-3">
+                        <MathText text={res.snippet} highlightQuery={searchQuery} />
                       </div>
                     )}
                   </button>
