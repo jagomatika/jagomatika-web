@@ -40,7 +40,12 @@ import {
   LogIn,
   UserPlus,
   RefreshCw,
-  Search
+  Search,
+  MessageSquare,
+  Send,
+  Megaphone,
+  Mail,
+  Info
 } from 'lucide-react';
 
 const EDITOR_PASSWORD = 'punyawebolim';
@@ -558,6 +563,34 @@ export default function App() {
   const [loadingCloudStudents, setLoadingCloudStudents] = useState(false);
   const [confirmDeleteStudentId, setConfirmDeleteStudentId] = useState(null);
 
+  // State Pengumuman & Panduan Penggunaan Efektif di Halaman Awal
+  const [showWelcomeGuide, setShowWelcomeGuide] = useState(true);
+  const [announcementData, setAnnouncementData] = useState(() => {
+    const defaultAnn = {
+      title: 'Pengumuman & Panduan Belajar Efektif di Jagomatika',
+      message:
+        'Selamat datang di Portal Belajar Olimpiade Matematika Jagomatika! Wajib mendaftar/masuk menggunakan alamat email aktif Anda agar seluruh progres belajar, riwayat latihan, dan informasi pembinaan tercatat dengan baik.'
+    };
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('jagomatika_announcement');
+      if (saved) {
+        try {
+          return { ...defaultAnn, ...JSON.parse(saved) };
+        } catch (e) {}
+      }
+    }
+    return defaultAnn;
+  });
+  const [edAnnTitle, setEdAnnTitle] = useState('');
+  const [edAnnMessage, setEdAnnMessage] = useState('');
+
+  // State Komentar Siswa di Bagian Bawah Materi
+  const [topicComments, setTopicComments] = useState([]);
+  const [commentInput, setCommentInput] = useState('');
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [commentsTableMissing, setCommentsTableMissing] = useState(false);
+
   const [selectedTopicId, setSelectedTopicId] = useState('t1');
 
   const allTopics = curriculumData.flatMap((l) => l.units).flatMap((u) => u.topics);
@@ -994,7 +1027,7 @@ export default function App() {
           mixedAttempts: data.mixed_attempts || {}
         });
       } else {
-        const fallbackUsername = user.user_metadata?.username || (user.email || '').split('@')[0];
+        const fallbackUsername = user.user_metadata?.username || user.email || '';
         const fallbackName = user.user_metadata?.full_name || fallbackUsername || 'Siswa';
         const fallbackSchool = user.user_metadata?.school_info || '';
         const recovered = createEmptyProgress(fallbackName, fallbackUsername, fallbackSchool);
@@ -1188,20 +1221,201 @@ export default function App() {
   }, [selectedTopic?.id, activeView, isEditorMode, authUser]);
 
   // ==========================================
+  // HANDLER KOMENTAR MATERI (CLOUD + FALLBACK LOKAL)
+  // ==========================================
+  const loadLocalCommentsForTopic = (topicId) => {
+    try {
+      const raw = localStorage.getItem('jagomatika_topic_comments');
+      const allMap = raw ? JSON.parse(raw) : {};
+      return Array.isArray(allMap[topicId]) ? allMap[topicId] : [];
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const saveLocalCommentsForTopic = (topicId, list) => {
+    try {
+      const raw = localStorage.getItem('jagomatika_topic_comments');
+      const allMap = raw ? JSON.parse(raw) : {};
+      allMap[topicId] = list;
+      localStorage.setItem('jagomatika_topic_comments', JSON.stringify(allMap));
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    if (!selectedTopic?.id || activeView !== 'topic' || isEditorMode) return;
+
+    let isCancelled = false;
+    const fetchComments = async () => {
+      if (!supabase) {
+        setTopicComments(loadLocalCommentsForTopic(selectedTopic.id));
+        return;
+      }
+
+      setLoadingComments(true);
+      try {
+        const { data, error } = await supabase
+          .from('topic_comments')
+          .select('*')
+          .eq('topic_id', selectedTopic.id)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          if (
+            error.code === '42P01' ||
+            error.code === 'PGRST205' ||
+            (error.message && error.message.toLowerCase().includes('topic_comments'))
+          ) {
+            if (!isCancelled) {
+              setCommentsTableMissing(true);
+              setTopicComments(loadLocalCommentsForTopic(selectedTopic.id));
+            }
+            return;
+          }
+          throw error;
+        }
+
+        if (!isCancelled) {
+          setCommentsTableMissing(false);
+          setTopicComments(data || []);
+        }
+      } catch (err) {
+        console.error('Gagal memuat komentar materi:', err);
+        if (!isCancelled) {
+          setTopicComments(loadLocalCommentsForTopic(selectedTopic.id));
+        }
+      } finally {
+        if (!isCancelled) setLoadingComments(false);
+      }
+    };
+
+    fetchComments();
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedTopic?.id, activeView, isEditorMode]);
+
+  const handleAddTopicComment = async (e) => {
+    e.preventDefault();
+    const trimmed = commentInput.trim();
+    if (!trimmed) return;
+
+    if (!authUser && !isEditorUnlocked) {
+      setAuthTab('login');
+      setAuthError('');
+      setShowAuthModal(true);
+      return;
+    }
+
+    const isCoachPosting = !authUser && isEditorUnlocked;
+    const authorName = isCoachPosting ? 'Pembina Olimpiade (OM)' : currentStudentData.name || 'Siswa';
+    const authorEmail = isCoachPosting ? 'pembina@jagomatika' : currentStudentData.username || authUser?.email || '';
+
+    const localCommentObj = {
+      id: `local-${Date.now()}`,
+      topic_id: selectedTopic.id,
+      user_id: authUser?.id || 'admin',
+      author_name: authorName,
+      author_email: authorEmail,
+      is_admin: isCoachPosting,
+      comment_text: trimmed,
+      created_at: new Date().toISOString()
+    };
+
+    setSubmittingComment(true);
+    try {
+      if (!supabase || commentsTableMissing) {
+        const nextList = [localCommentObj, ...topicComments];
+        setTopicComments(nextList);
+        saveLocalCommentsForTopic(selectedTopic.id, nextList);
+        setCommentInput('');
+        showToast('💬 Komentar berhasil ditambahkan!');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('topic_comments')
+        .insert({
+          topic_id: selectedTopic.id,
+          user_id: authUser?.id || null,
+          author_name: authorName,
+          author_email: authorEmail,
+          is_admin: isCoachPosting,
+          comment_text: trimmed
+        })
+        .select()
+        .single();
+
+      if (error) {
+        if (
+          error.code === '42P01' ||
+          error.code === 'PGRST205' ||
+          (error.message && error.message.toLowerCase().includes('topic_comments'))
+        ) {
+          setCommentsTableMissing(true);
+          const nextList = [localCommentObj, ...topicComments];
+          setTopicComments(nextList);
+          saveLocalCommentsForTopic(selectedTopic.id, nextList);
+          setCommentInput('');
+          showToast('💬 Komentar tersimpan di browser ini.');
+          return;
+        }
+        throw error;
+      }
+
+      if (data) {
+        setTopicComments((prev) => [data, ...prev]);
+        setCommentInput('');
+        showToast('💬 Komentar berhasil dikirim!');
+      }
+    } catch (err) {
+      console.error('Gagal mengirim komentar:', err);
+      showToast('⚠️ Gagal mengirim komentar. Silakan coba lagi.');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  const handleDeleteTopicComment = async (commentItem) => {
+    const canDelete = isEditorUnlocked || (authUser && commentItem.user_id === authUser.id);
+    if (!canDelete) return;
+
+    const nextList = topicComments.filter((c) => c.id !== commentItem.id);
+    setTopicComments(nextList);
+
+    if (!supabase || commentsTableMissing || String(commentItem.id).startsWith('local-')) {
+      saveLocalCommentsForTopic(selectedTopic.id, nextList);
+      showToast('🗑️ Komentar dihapus.');
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('topic_comments').delete().eq('id', commentItem.id);
+      if (error) throw error;
+      showToast('🗑️ Komentar berhasil dihapus.');
+    } catch (err) {
+      console.error('Gagal menghapus komentar:', err);
+    }
+  };
+
+  // ==========================================
   // HANDLER LOGIN, REGISTER, & LOGOUT SISWA
   // ==========================================
+  const isValidEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((val || '').trim());
+
   const formatUsernameToEmail = (rawUsername) => {
     const trimmed = rawUsername.trim().toLowerCase();
     if (trimmed.includes('@')) {
       return {
         email: trimmed,
-        cleanUsername: trimmed.split('@')[0].replace(/[^a-z0-9._-]/g, '')
+        cleanUsername: trimmed
       };
     }
-    const cleanUsername = trimmed.replace(/[^a-z0-9._-]/g, '');
+    // Kompatibilitas mundur agar akun lama tanpa '@' tetap bisa login
+    const cleanOldUsername = trimmed.replace(/[^a-z0-9._-]/g, '');
     return {
-      email: `${cleanUsername}@jagomatika.siswa`,
-      cleanUsername
+      email: `${cleanOldUsername}@jagomatika.siswa`,
+      cleanUsername: cleanOldUsername
     };
   };
 
@@ -1214,14 +1428,14 @@ export default function App() {
       return;
     }
 
-    const { email, cleanUsername } = formatUsernameToEmail(authUsername);
+    const cleanEmail = authUsername.trim().toLowerCase();
 
     if (!authFullName.trim()) {
       setAuthError('Nama lengkap wajib diisi.');
       return;
     }
-    if (cleanUsername.length < 3) {
-      setAuthError('Username minimal 3 karakter (huruf, angka, titik, atau garis bawah tanpa spasi).');
+    if (!isValidEmail(cleanEmail)) {
+      setAuthError('Wajib menggunakan alamat email aktif yang valid sebagai username (contoh: nama@gmail.com).');
       return;
     }
     if (authPassword.length < 6) {
@@ -1232,11 +1446,11 @@ export default function App() {
     setAuthLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: cleanEmail,
         password: authPassword,
         options: {
           data: {
-            username: cleanUsername,
+            username: cleanEmail,
             full_name: authFullName.trim(),
             school_info: authSchoolInfo.trim()
           }
@@ -1245,7 +1459,7 @@ export default function App() {
 
       if (error) {
         if (error.message.toLowerCase().includes('already registered')) {
-          setAuthError('Username ini sudah terdaftar. Silakan pilih username lain atau klik tab "Masuk".');
+          setAuthError('Email ini sudah terdaftar. Silakan gunakan email lain atau klik tab "Masuk Akun".');
         } else {
           setAuthError(error.message);
         }
@@ -1256,7 +1470,7 @@ export default function App() {
         const initialProgress = {
           ...currentStudentData,
           name: authFullName.trim(),
-          username: cleanUsername,
+          username: cleanEmail,
           schoolInfo: authSchoolInfo.trim(),
           lastActive: new Date().toISOString()
         };
@@ -1264,7 +1478,7 @@ export default function App() {
         const { error: upsertErr } = await supabase.from('student_progress').upsert(
           {
             user_id: data.user.id,
-            username: cleanUsername,
+            username: cleanEmail,
             full_name: authFullName.trim(),
             school_info: authSchoolInfo.trim(),
             visited_topics: initialProgress.visitedTopics || [],
@@ -1278,7 +1492,7 @@ export default function App() {
 
         if (upsertErr) {
           if (upsertErr.message.includes('duplicate key')) {
-            setAuthError('Username sudah digunakan siswa lain. Silakan pilih username lain.');
+            setAuthError('Email ini sudah digunakan siswa lain. Silakan gunakan email lain.');
             return;
           }
           setAuthError(`Gagal menyimpan profil ke database: ${upsertErr.message}`);
@@ -1290,7 +1504,7 @@ export default function App() {
         setCurrentStudentData(initialProgress);
         setShowAuthModal(false);
         setAuthPassword('');
-        showToast(`🎉 Akun "${cleanUsername}" berhasil dibuat! Progres otomatis tersimpan ke cloud.`);
+        showToast(`🎉 Akun "${cleanEmail}" berhasil dibuat! Progres otomatis tersimpan ke cloud.`);
       }
     } catch (err) {
       setAuthError('Terjadi kesalahan saat mendaftar. Pastikan "Confirm email" di Supabase sudah dimatikan.');
@@ -2550,12 +2764,12 @@ export default function App() {
             {authTab === 'login' ? (
               <form onSubmit={handleLoginStudent} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Username</label>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Email (Username)</label>
                   <input
                     type="text"
                     value={authUsername}
                     onChange={(e) => setAuthUsername(e.target.value)}
-                    placeholder="Contoh: aqil_najih"
+                    placeholder="Contoh: aqil@gmail.com"
                     autoFocus
                     className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600"
                   />
@@ -2623,13 +2837,15 @@ export default function App() {
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1">
-                    Buat Username * <span className="font-normal text-gray-500">(tanpa spasi)</span>
+                    Email Aktif (sebagai Username) *{' '}
+                    <span className="font-normal text-gray-500">(untuk pesan/info dari pembina)</span>
                   </label>
                   <input
-                    type="text"
+                    type="email"
+                    required
                     value={authUsername}
                     onChange={(e) => setAuthUsername(e.target.value)}
-                    placeholder="Contoh: aqil_najih"
+                    placeholder="Contoh: aqil@gmail.com"
                     className="w-full px-3.5 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600"
                   />
                 </div>
@@ -3062,6 +3278,85 @@ export default function App() {
               </div>
             )}
 
+            {/* Pengumuman & Petunjuk Penggunaan Web Jagomatika yang Efektif (Halaman Awal) */}
+            {!isEditorMode && activeView === 'topic' && (
+              <div className="bg-white border border-emerald-200 rounded-2xl shadow-sm overflow-hidden">
+                <div className="bg-gradient-to-r from-emerald-800 to-teal-700 text-white px-5 py-3.5 flex items-center justify-between gap-3">
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+                      <Megaphone size={17} className="text-amber-300" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-200 block">
+                        Informasi & Panduan Siswa
+                      </span>
+                      <h2 className="text-sm md:text-base font-extrabold truncate">{announcementData.title}</h2>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowWelcomeGuide((prev) => !prev)}
+                    className="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-xs font-bold text-white shrink-0 transition-colors"
+                  >
+                    {showWelcomeGuide ? 'Sembunyikan' : 'Tampilkan Panduan'}
+                  </button>
+                </div>
+
+                {showWelcomeGuide && (
+                  <div className="p-5 md:p-6 space-y-4 bg-emerald-50/30">
+                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs md:text-sm text-amber-950 leading-relaxed">
+                      <strong className="text-amber-900">📢 Pengumuman: </strong>
+                      {announcementData.message}
+                    </div>
+
+                    <div className="space-y-2.5">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-900 flex items-center space-x-1.5">
+                        <Info size={14} className="text-emerald-700" />
+                        <span>Cara Menggunakan Web Jagomatika Secara Efektif:</span>
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs text-gray-700">
+                        <div className="p-3 rounded-xl bg-white border border-gray-200/90 flex items-start space-x-2.5">
+                          <span className="w-5 h-5 rounded-full bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                            1
+                          </span>
+                          <p>
+                            <strong className="text-gray-900">Daftar dengan Email Aktif:</strong> Gunakan alamat email aktif saat membuat akun agar capaian belajar tersimpan di cloud dan pembina dapat menghubungi Anda.
+                          </p>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-white border border-gray-200/90 flex items-start space-x-2.5">
+                          <span className="w-5 h-5 rounded-full bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                            2
+                          </span>
+                          <p>
+                            <strong className="text-gray-900">Belajar Bertahap per Level:</strong> Pilih kurikulum di menu kiri mulai dari <em>Level 1 (Fondasi)</em> ke <em>Level 2 &amp; 3</em>, serta baca <em>Catatan Pembina</em> di tiap topik.
+                          </p>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-white border border-gray-200/90 flex items-start space-x-2.5">
+                          <span className="w-5 h-5 rounded-full bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                            3
+                          </span>
+                          <p>
+                            <strong className="text-gray-900">Coba Sebelum Buka Solusi:</strong> Kerjakan <em>Contoh Soal</em> dan <em>Latihan Mandiri</em> di kertas terlebih dahulu. Skor akurasi dihitung dari <strong>pilihan pertama</strong> Anda.
+                          </p>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-white border border-gray-200/90 flex items-start space-x-2.5">
+                          <span className="w-5 h-5 rounded-full bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                            4
+                          </span>
+                          <p>
+                            <strong className="text-gray-900">Manfaatkan Pencarian &amp; Komentar:</strong> Tekan <kbd className="px-1.5 py-0.5 bg-gray-100 border rounded text-[10px] font-bold">Ctrl+K</kbd> untuk mencari rumus/topik, dan tulis pertanyaan di <strong>kolom komentar</strong> bawah materi.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {isEditorMode ? (
               // ==========================================
               // TAMPILAN MODE EDITOR & ANALITIK PEMILIK WEB
@@ -3102,7 +3397,8 @@ export default function App() {
                     {editorTarget !== 'mixed' &&
                       editorTarget !== 'unit' &&
                       editorTarget !== 'topic' &&
-                      editorTarget !== 'analytics' && (
+                      editorTarget !== 'analytics' &&
+                      editorTarget !== 'announcement' && (
                         <div className="pt-1 max-w-md">
                           <label className="block text-xs text-slate-400 mb-1">Topik Aktif Saat Ini:</label>
                           <select
@@ -3164,7 +3460,8 @@ export default function App() {
                     { id: 'exercise', label: 'Latihan Mandiri' },
                     { id: 'example', label: 'Contoh Soal' },
                     { id: 'section', label: 'Materi / Teori' },
-                    { id: 'mixed', label: 'Bank Soal Campuran' }
+                    { id: 'mixed', label: 'Bank Soal Campuran' },
+                    { id: 'announcement', label: '📢 Pengumuman' }
                   ].map((tab) => (
                     <button
                       key={tab.id}
@@ -3350,7 +3647,18 @@ export default function App() {
                                 <tr key={st.userId} className="hover:bg-gray-50">
                                   <td className="py-3 px-3">
                                     <p className="font-bold text-gray-900">{st.name}</p>
-                                    <p className="text-[11px] text-gray-500">@{st.username}</p>
+                                    {st.username && st.username.includes('@') ? (
+                                      <a
+                                        href={`mailto:${st.username}`}
+                                        title="Klik untuk kirim email ke siswa ini"
+                                        className="inline-flex items-center space-x-1 text-[11px] font-semibold text-emerald-700 hover:underline mt-0.5"
+                                      >
+                                        <Mail size={11} />
+                                        <span>{st.username}</span>
+                                      </a>
+                                    ) : (
+                                      <p className="text-[11px] text-gray-500">@{st.username}</p>
+                                    )}
                                   </td>
                                   <td className="py-3 px-3 text-gray-600">{st.schoolInfo || '-'}</td>
                                   <td className="py-3 px-3">
@@ -3729,8 +4037,62 @@ export default function App() {
                   </div>
                 )}
 
+                {/* FORM EDIT PENGUMUMAN HALAMAN AWAL */}
+                {editorTarget === 'announcement' && (
+                  <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-5">
+                    <div className="flex items-center space-x-2 border-b pb-3">
+                      <Megaphone size={18} className="text-emerald-700" />
+                      <h2 className="text-base font-bold text-gray-900">
+                        Edit Pengumuman Halaman Awal Web Jagomatika
+                      </h2>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Judul Banner Pengumuman</label>
+                        <input
+                          type="text"
+                          value={edAnnTitle || announcementData.title}
+                          onChange={(e) => setEdAnnTitle(e.target.value)}
+                          className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Isi Pengumuman untuk Siswa</label>
+                        <textarea
+                          rows={3}
+                          value={edAnnMessage || announcementData.message}
+                          onChange={(e) => setEdAnnMessage(e.target.value)}
+                          className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updatedAnn = {
+                            title: (edAnnTitle || announcementData.title).trim(),
+                            message: (edAnnMessage || announcementData.message).trim()
+                          };
+                          setAnnouncementData(updatedAnn);
+                          localStorage.setItem('jagomatika_announcement', JSON.stringify(updatedAnn));
+                          showToast('✅ Pengumuman halaman awal berhasil diperbarui!');
+                        }}
+                        className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs shadow-sm flex items-center space-x-2"
+                      >
+                        <Save size={16} />
+                        <span>Simpan Pengumuman</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* FORM KONTEN SOAL / MATERI (Exercise, Example, Section, Mixed) */}
-                {editorTarget !== 'analytics' && editorTarget !== 'unit' && editorTarget !== 'topic' && (
+                {editorTarget !== 'analytics' &&
+                  editorTarget !== 'unit' &&
+                  editorTarget !== 'topic' &&
+                  editorTarget !== 'announcement' && (
                   <>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       <div
@@ -4706,6 +5068,145 @@ export default function App() {
                         </div>
                       </section>
                     )}
+
+                    {/* DISKUSI & KOMENTAR MATERI */}
+                    <section
+                      id="komentar-materi"
+                      className="bg-white p-6 md:p-8 rounded-2xl border border-gray-200/80 shadow-sm space-y-6"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+                        <div className="flex items-center space-x-2">
+                          <MessageSquare size={20} className="text-emerald-700" />
+                          <h2 className="text-lg font-bold text-gray-900">
+                            Diskusi &amp; Komentar Materi ({topicComments.length})
+                          </h2>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          Mendukung rumus matematika LaTeX (<code className="bg-gray-100 px-1 rounded">$...$</code>)
+                        </span>
+                      </div>
+
+                      {/* Form Tambah Komentar */}
+                      {authUser || isEditorUnlocked ? (
+                        <form onSubmit={handleAddTopicComment} className="space-y-3">
+                          <div className="flex items-center justify-between text-xs text-gray-600">
+                            <span>
+                              Berkomentar sebagai:{' '}
+                              <strong className="text-emerald-800">
+                                {!authUser && isEditorUnlocked
+                                  ? 'Pembina Olimpiade (OM)'
+                                  : `${currentStudentData.name} (${currentStudentData.username})`}
+                              </strong>
+                            </span>
+                          </div>
+                          <textarea
+                            rows={3}
+                            value={commentInput}
+                            onChange={(e) => setCommentInput(e.target.value)}
+                            placeholder="Tulis pertanyaan, catatan penting, atau diskusi terkait materi ini..."
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600 bg-gray-50/40 focus:bg-white transition-colors"
+                          />
+                          <div className="flex items-center justify-end">
+                            <button
+                              type="submit"
+                              disabled={submittingComment || !commentInput.trim()}
+                              className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-bold shadow-xs transition-colors"
+                            >
+                              <Send size={14} />
+                              <span>{submittingComment ? 'Mengirim...' : 'Kirim Komentar'}</span>
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <p className="text-xs text-amber-950">
+                            Silakan <strong>Masuk / Daftar menggunakan Email</strong> terlebih dahulu untuk menambahkan komentar atau pertanyaan pada materi ini.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAuthTab('login');
+                              setAuthError('');
+                              setShowAuthModal(true);
+                            }}
+                            className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shrink-0"
+                          >
+                            Masuk / Daftar
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Daftar Komentar */}
+                      {loadingComments ? (
+                        <p className="text-xs text-gray-500 italic py-2">Memuat komentar...</p>
+                      ) : topicComments.length === 0 ? (
+                        <div className="text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-xs text-gray-500">
+                          Belum ada komentar pada materi ini. Jadilah yang pertama bertanya atau berdiskusi!
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {topicComments.map((c) => {
+                            const canDelete = isEditorUnlocked || (authUser && c.user_id === authUser.id);
+                            return (
+                              <div
+                                key={c.id}
+                                className={`p-4 rounded-xl border space-y-1.5 ${
+                                  c.is_admin
+                                    ? 'bg-emerald-50/70 border-emerald-200'
+                                    : 'bg-gray-50/60 border-gray-200'
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-xs font-bold text-gray-900">{c.author_name}</span>
+                                    {c.is_admin && (
+                                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-700 text-white">
+                                        Pembina
+                                      </span>
+                                    )}
+                                    {isEditorUnlocked && c.author_email && !c.is_admin && (
+                                      <a
+                                        href={`mailto:${c.author_email}`}
+                                        className="text-[11px] text-emerald-700 hover:underline"
+                                      >
+                                        ({c.author_email})
+                                      </a>
+                                    )}
+                                    <span className="text-[11px] text-gray-400">
+                                      •{' '}
+                                      {c.created_at
+                                        ? new Date(c.created_at).toLocaleString('id-ID', {
+                                            day: '2-digit',
+                                            month: 'short',
+                                            year: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                          })
+                                        : ''}
+                                    </span>
+                                  </div>
+
+                                  {canDelete && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteTopicComment(c)}
+                                      title="Hapus komentar"
+                                      className="p-1 text-gray-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">
+                                  <MathText text={c.comment_text} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </section>
                   </div>
 
                   <div className="space-y-4">
@@ -4732,6 +5233,11 @@ export default function App() {
                               </a>
                             </li>
                           )}
+                          <li>
+                            <a href="#komentar-materi" className="hover:text-emerald-700 hover:underline">
+                              04. Diskusi &amp; Komentar ({topicComments.length})
+                            </a>
+                          </li>
                         </ul>
                       </div>
 
