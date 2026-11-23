@@ -1624,7 +1624,7 @@ export default function App() {
         setResetMessage('Error: ' + error.message);
       } else {
         setResetMessage(
-          'Berhasil! Silakan cek kotak masuk (atau folder Spam) email Anda (Supabase Auth) untuk link reset password.'
+          'Berhasil! Silakan cek kotak masuk (atau folder Spam) email Anda untuk link reset password (Supabase Auth).'
         );
       }
     } catch (err) {
