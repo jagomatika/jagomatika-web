@@ -558,6 +558,18 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
 
+  // State Modal Lupa Password & Buat Password Baru
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState('');
+
+  const [showNewPasswordModal, setShowNewPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [updatePassLoading, setUpdatePassLoading] = useState(false);
+  const [updatePassError, setUpdatePassError] = useState('');
+
   // Daftar Seluruh Siswa dari Supabase (Untuk Dasbor Pemilik Web)
   const [cloudStudentsList, setCloudStudentsList] = useState([]);
   const [loadingCloudStudents, setLoadingCloudStudents] = useState(false);
@@ -1122,6 +1134,12 @@ export default function App() {
   useEffect(() => {
     if (!supabase) return;
 
+    const isRecoveryHash =
+      typeof window !== 'undefined' && window.location.hash.includes('type=recovery');
+    if (isRecoveryHash) {
+      setShowNewPasswordModal(true);
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setAuthUser(session.user);
@@ -1132,6 +1150,15 @@ export default function App() {
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setShowAuthModal(false);
+        setShowForgotModal(false);
+        setNewPassword('');
+        setConfirmNewPassword('');
+        setUpdatePassError('');
+        setShowNewPasswordModal(true);
+      }
+
       if (session?.user) {
         setAuthUser(session.user);
         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
@@ -1571,6 +1598,75 @@ export default function App() {
     setSelectedAnswer(null);
     setShowDiscussion(false);
     showToast('Anda telah keluar dari akun siswa.');
+  };
+
+  const handleSendResetEmail = async (e) => {
+    e.preventDefault();
+    setResetMessage('');
+
+    if (!supabase) {
+      setResetMessage('Error: Koneksi Supabase belum dikonfigurasi.');
+      return;
+    }
+
+    const cleanEmail = resetEmail.trim().toLowerCase();
+    if (!isValidEmail(cleanEmail)) {
+      setResetMessage('Error: Masukkan alamat email yang valid (contoh: nama@gmail.com).');
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: window.location.origin
+      });
+      if (error) {
+        setResetMessage('Error: ' + error.message);
+      } else {
+        setResetMessage(
+          'Berhasil! Silakan cek kotak masuk (atau folder Spam) email Anda untuk link reset password.'
+        );
+      }
+    } catch (err) {
+      setResetMessage('Error: Terjadi kesalahan jaringan saat mengirim link reset.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleSaveNewPassword = async (e) => {
+    e.preventDefault();
+    setUpdatePassError('');
+
+    if (!supabase) {
+      setUpdatePassError('Koneksi Supabase belum dikonfigurasi.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setUpdatePassError('Password minimal 6 karakter.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setUpdatePassError('Konfirmasi password tidak cocok.');
+      return;
+    }
+
+    setUpdatePassLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        setUpdatePassError(error.message);
+      } else {
+        setShowNewPasswordModal(false);
+        setNewPassword('');
+        setConfirmNewPassword('');
+        showToast('✅ Password baru berhasil disimpan! Anda sekarang masuk dengan password baru.');
+      }
+    } catch (err) {
+      setUpdatePassError('Gagal memperbarui password. Silakan coba lagi.');
+    } finally {
+      setUpdatePassLoading(false);
+    }
   };
 
   const handleDeleteCloudStudent = async (targetUserId) => {
@@ -2794,6 +2890,23 @@ export default function App() {
                       {authShowPass ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
+                  <div className="flex justify-end mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAuthModal(false);
+                        setAuthError('');
+                        setResetMessage('');
+                        if (authUsername.includes('@')) {
+                          setResetEmail(authUsername.trim());
+                        }
+                        setShowForgotModal(true);
+                      }}
+                      className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 hover:underline"
+                    >
+                      Lupa password?
+                    </button>
+                  </div>
                 </div>
 
                 {authError && (
@@ -2888,6 +3001,165 @@ export default function App() {
                 </button>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          MODAL 1: LUPA PASSWORD (KIRIM LINK EMAIL)
+          ========================================== */}
+      {showForgotModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-xl max-w-md w-full p-6 space-y-5">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <Mail size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Reset Password Akun</h3>
+                  <p className="text-xs text-gray-500">Tautan pemulihan akan dikirim ke email Anda</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForgotModal(false);
+                  setResetMessage('');
+                }}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSendResetEmail} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Masukkan Email yang Terdaftar
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  placeholder="Contoh: aqil@gmail.com"
+                  autoFocus
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              {resetMessage && (
+                <div
+                  className={`p-3 rounded-xl text-xs font-semibold border ${
+                    resetMessage.startsWith('Error')
+                      ? 'bg-red-50 border-red-200 text-red-700'
+                      : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  }`}
+                >
+                  {resetMessage}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={resetLoading}
+                className="w-full py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 shadow-xs transition-colors"
+              >
+                {resetLoading ? 'Mengirim Link...' : 'Kirim Link Reset ke Email'}
+              </button>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForgotModal(false);
+                    setResetMessage('');
+                    setAuthTab('login');
+                    setShowAuthModal(true);
+                  }}
+                  className="text-xs font-semibold text-gray-500 hover:text-emerald-700 hover:underline"
+                >
+                  ← Kembali ke Halaman Masuk
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          MODAL 2: BUAT PASSWORD BARU (SETELAH KLIK LINK EMAIL)
+          ========================================== */}
+      {showNewPasswordModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-xl max-w-md w-full p-6 space-y-5">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <Lock size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Buat Password Baru</h3>
+                  <p className="text-xs text-gray-500">Masukkan password baru untuk akun siswa Anda</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNewPasswordModal(false);
+                  setUpdatePassError('');
+                }}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNewPassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Password Baru (Minimal 6 karakter)
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Ketik password baru..."
+                  autoFocus
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Konfirmasi Password Baru
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  placeholder="Ulangi password baru..."
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              {updatePassError && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700">
+                  {updatePassError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={updatePassLoading}
+                className="w-full py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 shadow-xs transition-colors"
+              >
+                {updatePassLoading ? 'Menyimpan...' : 'Simpan Password Baru'}
+              </button>
+            </form>
           </div>
         </div>
       )}
