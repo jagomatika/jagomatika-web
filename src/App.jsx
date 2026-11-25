@@ -655,6 +655,8 @@ export default function App() {
   const [editorTarget, setEditorTarget] = useState('analytics');
   const [editingIndex, setEditingIndex] = useState(null);
   const [confirmDeleteIdx, setConfirmDeleteIdx] = useState(null);
+  const [confirmDeleteUnitKey, setConfirmDeleteUnitKey] = useState(null);
+  const [confirmDeleteTopicKey, setConfirmDeleteTopicKey] = useState(null);
 
   // State Drag & Drop Reorder
   const [draggedIdx, setDraggedIdx] = useState(null);
@@ -2041,6 +2043,8 @@ export default function App() {
   const resetFormFields = () => {
     setEditingIndex(null);
     setConfirmDeleteIdx(null);
+    setConfirmDeleteUnitKey(null);
+    setConfirmDeleteTopicKey(null);
     setEditingUnitId(null);
     setEditingTopicId(null);
     resetDragState();
@@ -2277,6 +2281,7 @@ export default function App() {
       };
     });
     setCurriculumData(updatedCurriculum);
+    setConfirmDeleteUnitKey(null);
     syncContentToCloud(updatedCurriculum, questionBank, '🗑️ Unit berhasil dihapus.');
   };
 
@@ -2347,6 +2352,7 @@ export default function App() {
       };
     });
     setCurriculumData(updatedCurriculum);
+    setConfirmDeleteTopicKey(null);
     syncContentToCloud(updatedCurriculum, questionBank, '🗑️ Topik berhasil dihapus.');
   };
 
@@ -4114,18 +4120,38 @@ export default function App() {
                                         setTargetLevelId(lvl.levelId);
                                         setEditingUnitId(u.id);
                                         setEdUnitTitle(u.title);
+                                        setConfirmDeleteUnitKey(null);
                                       }}
                                       className="px-2.5 py-1.5 bg-amber-100 text-amber-900 rounded-lg font-bold hover:bg-amber-200"
                                     >
                                       Edit
                                     </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteUnit(lvl.levelId, u.id)}
-                                      className="px-2.5 py-1.5 bg-red-100 text-red-700 rounded-lg font-bold hover:bg-red-200"
-                                    >
-                                      Hapus
-                                    </button>
+                                    {confirmDeleteUnitKey === `${lvl.levelId}::${u.id}` ? (
+                                      <div className="flex items-center space-x-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteUnit(lvl.levelId, u.id)}
+                                          className="px-2.5 py-1.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700"
+                                        >
+                                          Yakin?
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setConfirmDeleteUnitKey(null)}
+                                          className="px-2 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300"
+                                        >
+                                          Batal
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmDeleteUnitKey(`${lvl.levelId}::${u.id}`)}
+                                        className="px-2.5 py-1.5 bg-red-100 text-red-700 rounded-lg font-bold hover:bg-red-200"
+                                      >
+                                        Hapus
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -4291,18 +4317,38 @@ export default function App() {
                                     setEditingTopicId(t.id);
                                     setEdTopicTitle(t.title);
                                     setEdCoachNote(t.coachNote || '');
+                                    setConfirmDeleteTopicKey(null);
                                   }}
                                   className="px-2.5 py-1.5 bg-amber-100 text-amber-900 rounded-lg font-bold hover:bg-amber-200"
                                 >
                                   Edit
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteTopic(targetLevelId, unitObj.id, t.id)}
-                                  className="px-2.5 py-1.5 bg-red-100 text-red-700 rounded-lg font-bold hover:bg-red-200"
-                                >
-                                  Hapus
-                                </button>
+                                {confirmDeleteTopicKey === `${targetLevelId}::${unitObj.id}::${t.id}` ? (
+                                  <div className="flex items-center space-x-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteTopic(targetLevelId, unitObj.id, t.id)}
+                                      className="px-2.5 py-1.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700"
+                                    >
+                                      Yakin?
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmDeleteTopicKey(null)}
+                                      className="px-2 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300"
+                                    >
+                                      Batal
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteTopicKey(`${targetLevelId}::${unitObj.id}::${t.id}`)}
+                                    className="px-2.5 py-1.5 bg-red-100 text-red-700 rounded-lg font-bold hover:bg-red-200"
+                                  >
+                                    Hapus
+                                  </button>
+                                )}
                               </div>
                             </div>
                           );
