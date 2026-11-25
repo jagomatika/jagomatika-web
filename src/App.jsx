@@ -1798,12 +1798,13 @@ export default function App() {
   const handleSelectMixedAnswer = (qObj, option) => {
     setSelectedAnswer(option);
     if (!qObj) return;
+    const qKey = qObj.id ?? `idx-${currentQIndex}`;
     const isCorrect = option === qObj.answer;
     const isDiscCurrentlyOpen = Boolean(showDiscussion);
 
     setCurrentStudentData((prev) => {
       const mixedMap = { ...(prev.mixedAttempts || {}) };
-      const prevAttempt = mixedMap[qObj.id];
+      const prevAttempt = mixedMap[qKey];
       const hasViewedDiscussion = Boolean(prevAttempt?.viewedDiscussion || isDiscCurrentlyOpen);
 
       const nextIsFirstCorrect =
@@ -1811,7 +1812,7 @@ export default function App() {
           ? prevAttempt.isFirstCorrect && !hasViewedDiscussion
           : !hasViewedDiscussion && isCorrect;
 
-      mixedMap[qObj.id] = {
+      mixedMap[qKey] = {
         firstAnswer: prevAttempt?.firstAnswer ?? option,
         isFirstCorrect: nextIsFirstCorrect,
         viewedDiscussion: hasViewedDiscussion,
@@ -2622,8 +2623,8 @@ export default function App() {
   const handleToggleMixedDiscussion = () => {
     const nextOpen = !showDiscussion;
     setShowDiscussion(nextOpen);
-    if (nextOpen && activeQuestion?.id) {
-      markDiscussionViewed('mixed', 'mixed', activeQuestion.id);
+    if (nextOpen && activeQuestionId !== null) {
+      markDiscussionViewed('mixed', 'mixed', activeQuestionId);
     }
   };
 
@@ -2643,6 +2644,8 @@ export default function App() {
             : [];
 
   const activeQuestion = questionBank[currentQIndex] || questionBank[0];
+  const activeQuestionId = activeQuestion ? (activeQuestion.id ?? `idx-${currentQIndex}`) : null;
+  const savedMixedAttempt = activeQuestionId !== null ? currentStudentData.mixedAttempts?.[activeQuestionId] : null;
   const studentAnalytics = computeStudentAnalytics(currentStudentData);
   const ownerAnalytics = isEditorMode ? computeOwnerAnalytics() : null;
 
@@ -5037,13 +5040,26 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
-                    <div className="flex items-center justify-between border-b pb-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-4">
                       <span className="text-xs font-bold px-3 py-1 bg-amber-100 text-amber-800 rounded-full">
                         Kategori: {activeQuestion?.category || 'Umum'}
                       </span>
-                      <span className="text-xs font-semibold text-gray-500">
-                        Soal #{currentQIndex + 1} dari {questionBank.length}
-                      </span>
+                      <div className="flex items-center gap-2.5">
+                        {savedMixedAttempt && (
+                          <span
+                            className={`text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
+                              savedMixedAttempt.isFirstCorrect
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}
+                          >
+                            {savedMixedAttempt.isFirstCorrect ? 'Langsung Benar' : 'Pernah Salah / Lihat Kunci'}
+                          </span>
+                        )}
+                        <span className="text-xs font-semibold text-gray-500">
+                          Soal #{currentQIndex + 1} dari {questionBank.length}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="text-base md:text-lg font-medium text-gray-900 leading-relaxed">
