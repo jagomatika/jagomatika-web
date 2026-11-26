@@ -45,7 +45,8 @@ import {
   Send,
   Megaphone,
   Mail,
-  Info
+  Info,
+  Share2
 } from 'lucide-react';
 
 const EDITOR_PASSWORD = 'punyawebolim';
@@ -603,7 +604,14 @@ export default function App() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [commentsTableMissing, setCommentsTableMissing] = useState(false);
 
-  const [selectedTopicId, setSelectedTopicId] = useState('t1');
+  const [selectedTopicId, setSelectedTopicId] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const topicFromUrl = params.get('topic');
+      if (topicFromUrl) return topicFromUrl;
+    }
+    return 't1';
+  });
 
   const allTopics = curriculumData.flatMap((l) => l.units).flatMap((u) => u.topics);
   const selectedTopic =
@@ -713,6 +721,46 @@ export default function App() {
     setSaveNotification(msg);
     setTimeout(() => setSaveNotification(''), 3500);
   };
+
+// 1. Buka otomatis lipatan Level & Unit di sidebar sesuai materi yang dibuka
+  useEffect(() => {
+    if (!selectedTopicId || !Array.isArray(curriculumData)) return;
+
+    for (const lvl of curriculumData) {
+      for (const unt of lvl.units || []) {
+        const foundTopic = (unt.topics || []).find((t) => t.id === selectedTopicId);
+        if (foundTopic) {
+          setOpenLevels((prev) => (prev[lvl.levelId] ? prev : { ...prev, [lvl.levelId]: true }));
+          setOpenUnits((prev) => (prev[unt.id] ? prev : { ...prev, [unt.id]: true }));
+          return;
+        }
+      }
+    }
+  }, [selectedTopicId, curriculumData]);
+
+  // 2. Sinkronisasi otomatis parameter ?topic=<id> pada URL browser
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const topicExistsInCurriculum = allTopics.some((t) => t.id === selectedTopicId);
+    if (activeView === 'topic' && !isEditorMode && selectedTopicId && !topicExistsInCurriculum) {
+      // Tunggu data kurikulum selesai dimuat dari Supabase sebelum mengubah URL
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    if (activeView === 'topic' && !isEditorMode && selectedTopic?.id && selectedTopic.id !== 't-fallback') {
+      url.searchParams.set('topic', selectedTopic.id);
+    } else {
+      url.searchParams.delete('topic');
+    }
+
+    const nextRelativeUrl = `${url.pathname}${url.search}${url.hash}`;
+    const currentRelativeUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (nextRelativeUrl !== currentRelativeUrl) {
+      window.history.replaceState({}, '', nextRelativeUrl);
+    }
+  }, [activeView, isEditorMode, selectedTopic?.id, selectedTopicId, allTopics]);
 
   // Pintasan Keyboard Ctrl+K / Cmd+K untuk membuka Pencarian & Esc untuk menutup
   useEffect(() => {
@@ -1708,6 +1756,30 @@ export default function App() {
       syncStudentProgressToStorage(nextData);
       return nextData;
     });
+  };
+
+const handleShareTopic = async () => {
+    if (typeof window === 'undefined' || !selectedTopic?.id) return;
+
+    const shareUrl = new URL(window.location.origin + window.location.pathname);
+    shareUrl.searchParams.set('topic', selectedTopic.id);
+    const finalLink = shareUrl.toString();
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(finalLink);
+      } else {
+        const tempInput = document.createElement('input');
+        tempInput.value = finalLink;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+      }
+      showToast(`🔗 Tautan materi "${selectedTopic.title}" berhasil disalin! Siap ditempel ke WhatsApp.`);
+    } catch (err) {
+      showToast(`⚠️ Gagal menyalin otomatis. Salin tautan ini: ${finalLink}`);
+    }
   };
 
   const markDiscussionViewed = (scope, containerId, qId) => {
@@ -5187,17 +5259,28 @@ export default function App() {
                       </span>
                     </div>
 
-                    <button
-                      onClick={handleToggleTopicCompleted}
-                      className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm ${
-                        isTopicCompleted
-                          ? 'bg-emerald-700 text-white'
-                          : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
-                      }`}
-                    >
-                      <CheckCircle size={16} />
-                      <span>{isTopicCompleted ? 'Materi Selesai Dipelajari' : 'Tandai Selesai'}</span>
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={handleShareTopic}
+                        className="flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-semibold bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition-all shadow-sm"
+                      >
+                        <Share2 size={16} />
+                        <span>Bagikan Materi</span>
+                      </button>
+
+                      <button
+                        onClick={handleToggleTopicCompleted}
+                        className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm ${
+                          isTopicCompleted
+                            ? 'bg-emerald-700 text-white'
+                            : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
+                        }`}
+                      >
+                        <CheckCircle size={16} />
+                        <span>{isTopicCompleted ? 'Materi Selesai Dipelajari' : 'Tandai Selesai'}</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
