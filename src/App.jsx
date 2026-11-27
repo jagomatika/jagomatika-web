@@ -4684,7 +4684,7 @@ const handleShareTopic = async () => {
                                   onChange={(e) => setEdCategory(e.target.value)}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm bg-white"
                                 >
-                                  <option value="Teori Bilangan">Teori Bilangan</option>
+                                  <option value="Bilangan">Bilangan</option>
                                   <option value="Aljabar">Aljabar</option>
                                   <option value="Geometri">Geometri</option>
                                   <option value="Kombinatorika">Kombinatorika</option>
