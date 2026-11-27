@@ -4579,6 +4579,7 @@ const handleShareTopic = async () => {
                                   <option value="Aljabar">Aljabar</option>
                                   <option value="Geometri">Geometri</option>
                                   <option value="Kombinatorika">Kombinatorika</option>
+                                  <option value="Statistika">Statistika</option>
                                 </select>
                               </div>
                             )}
