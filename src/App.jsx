@@ -529,6 +529,59 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFilter, setSearchFilter] = useState('all'); // 'all' | 'materi' | 'example' | 'exercise' | 'mixed'
   const searchInputRef = useRef(null);
+  
+  // State untuk navigasi Daftar Bank Soal Campuran di Mode Editor
+  const [mixedSearch, setMixedSearch] = useState('');
+  const [mixedCategoryFilter, setMixedCategoryFilter] = useState('ALL');
+  const [mixedPage, setMixedPage] = useState(1);
+  const [mixedPerPage, setMixedPerPage] = useState(10);
+
+  // Reset ke halaman 1 setiap kali pencarian atau filter kategori berubah
+  useEffect(() => {
+    setMixedPage(1);
+  }, [mixedSearch, mixedCategoryFilter, mixedPerPage]);
+
+  // Daftar kategori unik yang otomatis diambil dari questionBank
+  const availableMixedCategories = useMemo(() => {
+    const cats = questionBank.map((q) => q.category).filter(Boolean);
+    return Array.from(new Set(cats));
+  }, [questionBank]);
+
+  // Simpan indeks asli (realIndex) sebelum difilter agar Edit/Hapus/Urutan tidak tertukar
+  const filteredMixedQuestions = useMemo(() => {
+    const keyword = mixedSearch.trim().toLowerCase();
+
+    return questionBank
+      .map((item, realIndex) => ({ item, realIndex }))
+      .filter(({ item, realIndex }) => {
+        const matchCategory =
+          mixedCategoryFilter === 'ALL' || item.category === mixedCategoryFilter;
+
+        if (!matchCategory) return false;
+        if (!keyword) return true;
+
+        const nomorSoal = String(realIndex + 1);
+        const teksSoal = (item.question || item.text || '').toLowerCase();
+        const kunci = String(item.answer || item.correctAnswer || '').toLowerCase();
+
+        return (
+          nomorSoal === keyword ||
+          teksSoal.includes(keyword) ||
+          kunci.includes(keyword)
+        );
+      });
+  }, [questionBank, mixedSearch, mixedCategoryFilter]);
+
+  const totalMixedPages = Math.max(
+    1,
+    Math.ceil(filteredMixedQuestions.length / mixedPerPage)
+  );
+  const safeMixedPage = Math.min(mixedPage, totalMixedPages);
+
+  const paginatedMixedQuestions = useMemo(() => {
+    const start = (safeMixedPage - 1) * mixedPerPage;
+    return filteredMixedQuestions.slice(start, start + mixedPerPage);
+  }, [filteredMixedQuestions, safeMixedPage, mixedPerPage]);
 
   // ==========================================
   // STATE AUTENTIKASI & PROGRES SISWA (CLOUD)
@@ -4745,123 +4798,252 @@ const handleShareTopic = async () => {
                         </div>
                       </div>
 
-                      {savedItemsList.length === 0 ? (
-                        <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-sm text-gray-500">
-                          Belum ada data tersimpan pada bagian ini.
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {savedItemsList.map((item, idx) => {
-                            const isCurrentlyEditing = editingIndex === idx;
-                            const isConfirmingDelete = confirmDeleteIdx === idx;
-                            const isDragging = draggedIdx === idx;
-                            const isDragOver = dragOverIdx === idx;
-                            const previewTitle =
-                              editorTarget === 'section'
-                                ? item.heading
-                                : editorTarget === 'example'
-                                  ? item.problem
-                                  : item.question;
+                      {/* TOOLBAR PENCARIAN, FILTER KATEGORI & PAGINASI (KHUSUS BANK SOAL CAMPURAN) */}
+                      {editorTarget === 'mixed' && (
+                        <div className="p-3.5 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+                          <div className="flex flex-col md:flex-row gap-2.5">
+                            {/* Input Pencarian */}
+                            <input
+                              type="text"
+                              value={mixedSearch}
+                              onChange={(e) => setMixedSearch(e.target.value)}
+                              placeholder="Cari teks soal, kunci jawaban, atau ketik nomor soal (mis. 145)..."
+                              className="flex-1 px-3.5 py-2 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:border-emerald-600"
+                            />
 
-                            return (
-                              <div
-                                key={idx}
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, idx)}
-                                onDragOver={(e) => handleDragOver(e, idx)}
-                                onDrop={(e) => handleDrop(e, idx)}
-                                onDragEnd={resetDragState}
-                                className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all cursor-grab active:cursor-grabbing ${
-                                  isDragging
-                                    ? 'opacity-40 bg-emerald-50 border-emerald-400'
-                                    : isDragOver
-                                      ? 'border-emerald-600 ring-2 ring-emerald-300 bg-emerald-50/70'
-                                      : isCurrentlyEditing
-                                        ? 'border-amber-400 bg-amber-50/60'
-                                        : 'border-gray-200 bg-gray-50/40 hover:bg-gray-50'
-                                }`}
+                            {/* Filter Kategori */}
+                            <select
+                              value={mixedCategoryFilter}
+                              onChange={(e) => setMixedCategoryFilter(e.target.value)}
+                              className="px-3.5 py-2 bg-white border border-gray-300 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:border-emerald-600"
+                            >
+                              <option value="ALL">Semua Kategori ({questionBank.length})</option>
+                              {availableMixedCategories.map((cat) => (
+                                <option key={cat} value={cat}>
+                                  {cat}
+                                </option>
+                              ))}
+                            </select>
+
+                            {/* Pilihan Jumlah Tampil per Halaman */}
+                            <select
+                              value={mixedPerPage}
+                              onChange={(e) => setMixedPerPage(Number(e.target.value))}
+                              className="px-3.5 py-2 bg-white border border-gray-300 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:border-emerald-600"
+                            >
+                              <option value={10}>10 / halaman</option>
+                              <option value={20}>20 / halaman</option>
+                              <option value={50}>50 / halaman</option>
+                              <option value={100}>100 / halaman</option>
+                            </select>
+                          </div>
+
+                          {/* Baris Info & Tombol Pindah Halaman */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600 pt-1">
+                            <div>
+                              Menampilkan{' '}
+                              <span className="font-bold text-gray-900">
+                                {filteredMixedQuestions.length === 0
+                                  ? 0
+                                  : (safeMixedPage - 1) * mixedPerPage + 1}
+                              </span>
+                              –
+                              <span className="font-bold text-gray-900">
+                                {Math.min(safeMixedPage * mixedPerPage, filteredMixedQuestions.length)}
+                              </span>{' '}
+                              dari <span className="font-bold text-gray-900">{filteredMixedQuestions.length}</span> soal
+                              {(mixedSearch || mixedCategoryFilter !== 'ALL') && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMixedSearch('');
+                                    setMixedCategoryFilter('ALL');
+                                  }}
+                                  className="ml-2 text-emerald-700 font-semibold underline hover:text-emerald-900"
+                                >
+                                  Reset Filter
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                disabled={safeMixedPage <= 1}
+                                onClick={() => setMixedPage(1)}
+                                className="px-2.5 py-1 rounded-lg border border-gray-300 bg-white font-semibold disabled:opacity-40 hover:bg-gray-100"
                               >
-                                <div className="flex items-start space-x-3 min-w-0 flex-1">
-                                  <GripVertical size={18} className="text-gray-400 shrink-0 mt-1" />
-                                  <span className="w-7 h-7 rounded-lg bg-slate-800 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
-                                    {idx + 1}
-                                  </span>
-                                  <div className="min-w-0 flex-1 space-y-1">
-                                    {editorTarget === 'mixed' && item.category && (
-                                      <span className="inline-block text-[11px] font-bold px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md">
-                                        {item.category}
-                                      </span>
-                                    )}
-                                    <div className="text-sm font-medium text-gray-900 line-clamp-2">
-                                      <MathText text={previewTitle || '(Tanpa judul)'} />
+                                Awal
+                              </button>
+                              <button
+                                type="button"
+                                disabled={safeMixedPage <= 1}
+                                onClick={() => setMixedPage((p) => Math.max(1, p - 1))}
+                                className="px-2.5 py-1 rounded-lg border border-gray-300 bg-white font-semibold disabled:opacity-40 hover:bg-gray-100"
+                              >
+                                ← Prev
+                              </button>
+                              <span className="px-2.5 py-1 font-bold text-gray-800">
+                                Hal {safeMixedPage} / {totalMixedPages}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={safeMixedPage >= totalMixedPages}
+                                onClick={() => setMixedPage((p) => Math.min(totalMixedPages, p + 1))}
+                                className="px-2.5 py-1 rounded-lg border border-gray-300 bg-white font-semibold disabled:opacity-40 hover:bg-gray-100"
+                              >
+                                Next →
+                              </button>
+                              <button
+                                type="button"
+                                disabled={safeMixedPage >= totalMixedPages}
+                                onClick={() => setMixedPage(totalMixedPages)}
+                                title="Langsung lompat ke soal urutan paling bawah/terbaru"
+                                className="px-2.5 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 font-semibold disabled:opacity-40 hover:bg-emerald-100"
+                              >
+                                Terbaru ⇥
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {(() => {
+                        const displayedSavedItems =
+                          editorTarget === 'mixed'
+                            ? paginatedMixedQuestions
+                            : savedItemsList.map((item, idx) => ({ item, realIndex: idx }));
+
+                        if (savedItemsList.length === 0) {
+                          return (
+                            <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-sm text-gray-500">
+                              Belum ada data tersimpan pada bagian ini.
+                            </div>
+                          );
+                        }
+
+                        if (displayedSavedItems.length === 0) {
+                          return (
+                            <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-sm text-gray-500">
+                              Tidak ada soal yang cocok dengan kata kunci atau kategori yang dipilih.
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="space-y-3">
+                            {displayedSavedItems.map(({ item, realIndex }) => {
+                              const isCurrentlyEditing = editingIndex === realIndex;
+                              const isConfirmingDelete = confirmDeleteIdx === realIndex;
+                              const isDragging = draggedIdx === realIndex;
+                              const isDragOver = dragOverIdx === realIndex;
+                              const previewTitle =
+                                editorTarget === 'section'
+                                  ? item.heading
+                                  : editorTarget === 'example'
+                                    ? item.problem
+                                    : item.question;
+
+                              return (
+                                <div
+                                  key={realIndex}
+                                  draggable
+                                  onDragStart={(e) => handleDragStart(e, realIndex)}
+                                  onDragOver={(e) => handleDragOver(e, realIndex)}
+                                  onDrop={(e) => handleDrop(e, realIndex)}
+                                  onDragEnd={resetDragState}
+                                  className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all cursor-grab active:cursor-grabbing ${
+                                    isDragging
+                                      ? 'opacity-40 bg-emerald-50 border-emerald-400'
+                                      : isDragOver
+                                        ? 'border-emerald-600 ring-2 ring-emerald-300 bg-emerald-50/70'
+                                        : isCurrentlyEditing
+                                          ? 'border-amber-400 bg-amber-50/60'
+                                          : 'border-gray-200 bg-gray-50/40 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  <div className="flex items-start space-x-3 min-w-0 flex-1">
+                                    <GripVertical size={18} className="text-gray-400 shrink-0 mt-1" />
+                                    <span className="w-7 h-7 rounded-lg bg-slate-800 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                      {realIndex + 1}
+                                    </span>
+                                    <div className="min-w-0 flex-1 space-y-1">
+                                      {editorTarget === 'mixed' && item.category && (
+                                        <span className="inline-block text-[11px] font-bold px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md">
+                                          {item.category}
+                                        </span>
+                                      )}
+                                      <div className="text-sm font-medium text-gray-900 line-clamp-2">
+                                        <MathText text={previewTitle || '(Tanpa judul)'} />
+                                      </div>
+                                      {item.answer && (
+                                        <p className="text-xs text-emerald-700 font-semibold">
+                                          Kunci: <MathText text={item.answer} />
+                                        </p>
+                                      )}
                                     </div>
-                                    {item.answer && (
-                                      <p className="text-xs text-emerald-700 font-semibold">
-                                        Kunci: <MathText text={item.answer} />
-                                      </p>
+                                  </div>
+
+                                  <div className="flex items-center space-x-1.5 shrink-0 self-end sm:self-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => applyReorder(realIndex, realIndex - 1)}
+                                      disabled={realIndex === 0}
+                                      className="p-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
+                                    >
+                                      <ArrowUp size={14} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyReorder(realIndex, realIndex + 1)}
+                                      disabled={realIndex === savedItemsList.length - 1}
+                                      className="p-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
+                                    >
+                                      <ArrowDown size={14} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditItem(realIndex, item)}
+                                      className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300"
+                                    >
+                                      <Edit3 size={13} />
+                                      <span>Edit</span>
+                                    </button>
+
+                                    {isConfirmingDelete ? (
+                                      <div className="flex items-center space-x-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteItem(realIndex)}
+                                          className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-red-600 text-white hover:bg-red-700"
+                                        >
+                                          Yakin?
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setConfirmDeleteIdx(null)}
+                                          className="px-2 py-1.5 rounded-lg text-xs font-bold bg-gray-200 text-gray-700"
+                                        >
+                                          Batal
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmDeleteIdx(realIndex)}
+                                        className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-red-50 text-red-700 hover:bg-red-100 border border-red-200"
+                                      >
+                                        <Trash2 size={13} />
+                                        <span>Hapus</span>
+                                      </button>
                                     )}
                                   </div>
                                 </div>
-
-                                <div className="flex items-center space-x-1.5 shrink-0 self-end sm:self-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => applyReorder(idx, idx - 1)}
-                                    disabled={idx === 0}
-                                    className="p-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
-                                  >
-                                    <ArrowUp size={14} />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => applyReorder(idx, idx + 1)}
-                                    disabled={idx === savedItemsList.length - 1}
-                                    className="p-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-30"
-                                  >
-                                    <ArrowDown size={14} />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStartEditItem(idx, item)}
-                                    className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300"
-                                  >
-                                    <Edit3 size={13} />
-                                    <span>Edit</span>
-                                  </button>
-
-                                  {isConfirmingDelete ? (
-                                    <div className="flex items-center space-x-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDeleteItem(idx)}
-                                        className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-red-600 text-white hover:bg-red-700"
-                                      >
-                                        Yakin?
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => setConfirmDeleteIdx(null)}
-                                        className="px-2 py-1.5 rounded-lg text-xs font-bold bg-gray-200 text-gray-700"
-                                      >
-                                        Batal
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => setConfirmDeleteIdx(idx)}
-                                      className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-red-50 text-red-700 hover:bg-red-100 border border-red-200"
-                                    >
-                                      <Trash2 size={13} />
-                                      <span>Hapus</span>
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </>
                 )}
