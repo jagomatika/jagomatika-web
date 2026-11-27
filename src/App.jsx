@@ -70,6 +70,8 @@ if (isSupabaseConfigured) {
 function normalizeForSearch(raw = '') {
   return String(raw)
     .toLowerCase()
+    .replace(/<svg[\s\S]*?<\/svg>/gi, ' ')
+    .replace(/\[img:[^\]]+\]/gi, ' ')
     .replace(/\$\$/g, ' ')
     .replace(/\$/g, ' ')
     .replace(/\\(frac|sqrt|times|cdot|equiv|pmod|implies|left|right|quad|text|dots|ldots|cdots|neq|leq|geq)/g, ' ')
@@ -279,8 +281,8 @@ function applyHighlightToElement(rootEl, rawQuery) {
   walkNodes(rootEl);
 }
 
-// Komponen helper untuk merender tulisan, rumus LaTeX ($...$ dan $$...$$), serta stabilo kata kunci
-function MathText({ text = '', className = '', highlightQuery = '' }) {
+// Helper internal untuk merender segmen teks & rumus KaTeX
+function MathSegment({ text = '', className = '', highlightQuery = '' }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -308,6 +310,59 @@ function MathText({ text = '', className = '', highlightQuery = '' }) {
   }, [text, highlightQuery]);
 
   return <span ref={containerRef} className={className} />;
+}
+
+// Komponen utama: merender teks, rumus LaTeX, diagram <svg>, dan [img: URL]
+function MathText({ text = '', className = '', highlightQuery = '', hideMedia = false }) {
+  const raw = String(text || '');
+
+  if (hideMedia) {
+    const cleaned = raw
+      .replace(/<svg[\s\S]*?<\/svg>/gi, ' [Diagram] ')
+      .replace(/\[img:[^\]]+\]/gi, ' [Gambar] ');
+    return <MathSegment text={cleaned} className={className} highlightQuery={highlightQuery} />;
+  }
+
+  const hasMedia = /<svg[\s\S]*?<\/svg>|\[img:[^\]]+\]/i.test(raw);
+  if (!hasMedia) {
+    return <MathSegment text={raw} className={className} highlightQuery={highlightQuery} />;
+  }
+
+  const parts = raw.split(/(<svg[\s\S]*?<\/svg>|\[img:[^\]]+\])/gi);
+
+  return (
+    <span className={className}>
+      {parts.map((part, idx) => {
+        if (!part) return null;
+
+        if (/^<svg[\s\S]*<\/svg>$/i.test(part.trim())) {
+          return (
+            <span
+              key={idx}
+              className="my-3 flex justify-center overflow-x-auto"
+              dangerouslySetInnerHTML={{ __html: part.trim() }}
+            />
+          );
+        }
+
+        const imgMatch = part.trim().match(/^\[img:\s*([^\]]+)\]$/i);
+        if (imgMatch) {
+          return (
+            <span key={idx} className="my-3 flex justify-center">
+              <img
+                src={imgMatch[1].trim()}
+                alt="Ilustrasi Soal"
+                loading="lazy"
+                className="max-h-72 w-auto rounded-xl border border-gray-200 bg-white p-2 shadow-2xs object-contain"
+              />
+            </span>
+          );
+        }
+
+        return <MathSegment key={idx} text={part} highlightQuery={highlightQuery} />;
+      })}
+    </span>
+  );
 }
 
 const defaultCurriculumData = [
@@ -2788,6 +2843,7 @@ const handleShareTopic = async () => {
     { label: 'Kongruen (≡)', code: '$\\equiv$' },
     { label: 'Modulo', code: '$\\pmod{m}$' },
     { label: 'Implikasi (⇒)', code: '$\\implies$' }
+    { label: 'Gambar (URL)', code: '[img: https://link-gambar.png]' }
   ];
 
   return (
