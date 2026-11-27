@@ -2842,7 +2842,7 @@ const handleShareTopic = async () => {
     { label: 'Kali (×)', code: '$\\times$' },
     { label: 'Kongruen (≡)', code: '$\\equiv$' },
     { label: 'Modulo', code: '$\\pmod{m}$' },
-    { label: 'Implikasi (⇒)', code: '$\\implies$' }
+    { label: 'Implikasi (⇒)', code: '$\\implies$' },
     { label: 'Gambar (URL)', code: '[img: https://link-gambar.png]' }
   ];
 
